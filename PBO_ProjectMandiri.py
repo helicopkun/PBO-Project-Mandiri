@@ -47,33 +47,79 @@ class Player(GameObject):
         self.rect.height = self.size
 
         self.speedX = 400
-        self.speedY = 500
-        self.gravity = 450
+        self.speedY = 400
+        self.gravity = 250
 
         self.is_flying = False
-        self.fly_dur = 2000 /1000 # 2 sec
+        self.fly_barMax = 2 #sekon
+        self.fly_barRate = 0.5 #bar recharge per second
+        self.fly_barCD = 0.6 #cooldown before recharge
+        self.fly_barCD_time = 0
+        self.fly_bar = 0 # current bar
+
         self.is_jumping = False 
         self.jump_delay = 0                          
-        self.max_jump_delay = 200 /1000 # 200 ms , 1 sec = 1000 ms
+        self.max_jump_delay = 0.15 # jump cooldown
         self.jump_time = 0
-        self.max_jump_time = 250 /1000 # 250 ms
+        self.max_jump_time = 0.4 # jump duration
         self.air_time = 0
-        self.air_delay = 100 /1000 # 150 ms
+        self.air_delay = 0.1 # airborne
+        
         
 
     def on_platform(self):
         return self.rect.bottom >= MainPlatform.top - 3
 
+    
     def move(self, keys, dt):
-        #Flying
+        #Flying movement
         if keys[pygame.K_LSHIFT]:
-            self.hitbox_radius = 0
-            self.gravity = 0
-            self.is_flying = True
+            if self.fly_bar > 0:
+                self.fly_bar -= dt
+                self.hitbox_radius = 0
+                self.is_flying = True 
+            else:
+                self.hitbox_radius = self.sizeHitbox
+                self.is_flying = False
+            self.fly_barCD_time = pygame.time.get_ticks() / 1000  # set CD after flying
+
         else:
+            curCD_time = pygame.time.get_ticks() / 1000
+            if curCD_time - self.fly_barCD_time >= self.fly_barCD: # Recharge after CD
+                if self.fly_bar < self.fly_barMax:
+                    self.fly_bar += self.fly_barRate * dt
+                else:
+                    self.fly_bar = self.fly_barMax
+            
             self.hitbox_radius = self.sizeHitbox
-            self.gravity = 450
             self.is_flying = False
+
+        if self.is_flying:
+            dx = 0
+            dy = 0
+            if keys[pygame.K_a]: dx = -1
+            if keys[pygame.K_d]: dx = 1
+
+            if keys[pygame.K_w]: dy = -1
+            if keys[pygame.K_s]: dy = 1
+
+            if dx != 0 and dy != 0:
+                length = (dx**2 + dy**2) ** 0.5
+                dx /= length
+                dy /= length
+        
+            if self.rect.left > 0 + 5 or self.rect.right < WIDTH - 5:
+                self.rect.centerx += dx * self.speedX * dt
+                
+            if self.rect.top > 0 + 3 or self.rect.bottom < MainPlatform.top - 3:
+                self.rect.centery += dy * self.speedY * dt
+            
+            if self.rect.left < 0 + 5:                  self.rect.left = 0 + 5
+            if self.rect.right > WIDTH - 5:             self.rect.right = WIDTH - 5
+            if self.rect.top < 0 + 3:                   self.rect.top = 0 + 3
+            if self.rect.bottom > MainPlatform.top - 3: self.rect.bottom = MainPlatform.top - 3
+            return #agar tidak double dari movement biasa 
+
 
         #Horizontal movement
         if keys[pygame.K_a] and self.rect.left > 0 + 5:
@@ -96,15 +142,15 @@ class Player(GameObject):
                 self.jump_time = 0
                 self.jump_delay = 0
         
-        if self.is_jumping or self.is_flying:
+        if self.is_jumping:
             if (keys[pygame.K_w] or keys[pygame.K_SPACE]) and (not keys[pygame.K_s]
                                                     and self.rect.top > 0):
-                if self.jump_time < self.max_jump_time or self.is_flying:                                   
+                if self.jump_time < self.max_jump_time:  # Durasi lompat jika di tahan sampai max                            
                     self.rect.centery -= self.speedY * dt
                     self.jump_time += dt
                 else:
                     self.is_jumping = False
-            elif not self.is_flying:
+            else:                                    # Jika berhenti ditahan = sudah tidak jumping
                 self.is_jumping = False
 
         #Reset airborne, kondisi jump, etc jika berada di platform
@@ -113,11 +159,10 @@ class Player(GameObject):
             self.air_time = 0
             self.rect.bottom = MainPlatform.top - 3
             self.is_jumping = False
-        else:
-            self.air_time += dt
-            
+                 
         #Gravitasi
-        if not self.on_platform() and not self.is_jumping and not self.is_flying:
+        if not self.on_platform() and not self.is_jumping:
+            self.air_time += dt
             if self.air_time > self.air_delay: # Airborne
                 self.rect.centery += self.gravity * dt
 
@@ -143,8 +188,7 @@ class Bullet(GameObject):
                 self.vx = random.uniform(150, 300) 
                 self.vy = random.uniform(-50, 50)
 
-        
-            
+
         super().__init__(x, y, hitbox_radius=8)
         self.color = CYAN
 
@@ -162,23 +206,17 @@ tes = Player()
 enemies = [] # List bullet
 spawn_timer = 0
 spawn_rate = 0.5
-
+hit_counter = 0
+hit_grace = 2200 #ms i-frame after getting hit
+player_hit = False
 
 clock = pygame.time.Clock()
-font = pygame.font.SysFont(None, 48, bold=True)
-
-def get_text(Message, color = BLACK, alpha = 255, BGColor = None):
-    text = font.render(Message, True, color, BGColor)
-    text.set_alpha(alpha)
-    return text
-delayText = 1000
-
-
 
 running = True
 while running: #.tick(framerate) mengembalikan waktu ms antar frame
     dt = clock.tick(60) / 1000  # mengembalikan ms / 1000 = sekon
     screen.fill(BLACK)
+    pygame.draw.rect(screen, GREEN, MainPlatform)
     keys = pygame.key.get_pressed()
 
     for event in pygame.event.get():
@@ -189,35 +227,57 @@ while running: #.tick(framerate) mengembalikan waktu ms antar frame
     if spawn_timer >= spawn_rate:
         enemies.append(Bullet())
         spawn_timer = 0
-        spawn_rate = max(0.15, spawn_rate - 0.005)
+        spawn_rate = max(0.10, spawn_rate - 0.005)
     
     tes.move(keys, dt)
 
     for enemy in enemies[:]:
-        enemy.fire(dt) #double speed
         enemy.fire(dt)
         
         #Check i-frame & kolisi
-        if not tes.is_flying:
+        if not tes.is_flying and not player_hit:
             if circle_collide(tes.rect.center, tes.hitbox_radius, enemy.rect.center, enemy.hitbox_radius):
-                # For now, just print to the console and turn the player red when hit
                 enemies.remove(enemy)
-                print("Ouch! You got hit!")
-                pygame.draw.rect(screen, RED, tes.rect)
+                hit_counter = hit_counter + 1
+                print(f"Ouch! You got hit! x{hit_counter} time(s)\n")
+                hit_time = pygame.time.get_ticks()
+                player_hit = True
 
         if enemy.is_offscreen():
             enemies.remove(enemy)
 
-    player_color = BLUE if tes.is_flying else WHITE
+    if player_hit:
+        player_color = RED
+        current_time = pygame.time.get_ticks()
+        if current_time - hit_time >= hit_grace:
+            player_hit = False
+            tes.draw_Hitbox(screen)
+            player_color = WHITE
+    else:
+        tes.draw_Hitbox(screen)
+        player_color = WHITE
+    
+    if tes.is_flying: player_color = BLUE
+    
+
     pygame.draw.rect(screen, player_color, tes.rect, 2)
-    tes.draw_Hitbox(screen)
+
+    fly_bar_rect = pygame.Rect(0, 0, tes.fly_bar * 50, 10)
+    fly_bar_rect.centerx = tes.rect.centerx
+    fly_bar_rect.centery = tes.rect.centery + 20
+
+    fly_bar_rectMax = pygame.Rect(0, 0, tes.fly_barMax * 50 + 5, 15)
+    fly_bar_rectMax.centerx = tes.rect.centerx
+    fly_bar_rectMax.centery = tes.rect.centery + 20
+
+    pygame.draw.rect(screen, BLUE, fly_bar_rect)
+    pygame.draw.rect(screen, CYAN, fly_bar_rectMax, 2)
     
     for enemy in enemies:
         enemy.draw_Hitbox(screen, enemy.color)
-    pygame.draw.rect(screen, BLUE, MainPlatform)
+    
 
-    if pygame.time.get_ticks() % 1000 < 20: 
-        print(f"Jumlah musuh di layar: {len(enemies)}")
+
     pygame.display.update()
 
 pygame.quit()
