@@ -39,7 +39,7 @@ Platforms = [MainPlatform]
 
 class Player(GameObject):
     def __init__(self, sizeHitbox = 10, offset = 15): #customize player
-        super().__init__(x=sizeHitbox + 10, y=MainPlatform.rect.top)
+        super().__init__(x=sizeHitbox + offset, y=MainPlatform.rect.top - offset)
         self.sizeHitbox = sizeHitbox
         self.hitbox_radius = sizeHitbox
         self.width += offset
@@ -70,9 +70,12 @@ class Player(GameObject):
 
     def on_platform(self):
         for platform in Platforms:
-            if self.rect.bottom >= platform.rect.top - 3 and (
-                self.rect.right > platform.rect.left and self.rect.left < platform.rect.right
-            ):
+            if (
+            self.rect.bottom >= platform.rect.top - 3 and
+            self.rect.bottom <= platform.rect.top + self.sizeHitbox and  # batas bawah
+            self.rect.right > platform.rect.left and 
+            self.rect.left < platform.rect.right
+        ):
                 self.platform = platform
                 return True
         return False
@@ -117,7 +120,7 @@ class Player(GameObject):
             if self.rect.left > 0 + 5 and self.rect.right < WIDTH - 5:
                 self.rect.centerx += dx * self.speedX * dt
             
-            if self.rect.top > 0 + 3 or self.rect.bottom < self.platform.rect.top - 3:
+            if self.rect.top > 0 + 3 and self.rect.bottom <= self.platform.rect.top - 3:
                 self.rect.centery += dy * self.speedY * dt
             
             if self.rect.left < 0 + 5:                  self.rect.left = 0 + 5
@@ -143,6 +146,7 @@ class Player(GameObject):
         if (keys[pygame.K_w] or keys[pygame.K_SPACE]) and (not keys[pygame.K_s]
                                                 and self.on_platform() 
                                                 and not self.is_jumping):
+            
             if self.jump_delay >= self.max_jump_delay:
                 self.is_jumping = True                  
                 self.jump_time = 0
@@ -156,15 +160,15 @@ class Player(GameObject):
                     self.jump_time += dt
                 else:
                     self.is_jumping = False
-            else:                                    # Jika berhenti ditahan = sudah tidak jumping
+            else:                                 # Jika berhenti ditahan = sudah tidak jumping
                 self.is_jumping = False
 
         #Reset airborne, kondisi jump, etc jika berada di platform
-        if self.on_platform() and not keys[pygame.K_s]:
+        if self.on_platform() and not self.is_jumping and not keys[pygame.K_s]:
             self.jump_delay += dt
             self.air_time = 0
-            self.rect.bottom = self.platform.rect.top - 3
-            self.is_jumping = False
+            if self.platform is MainPlatform:
+                self.rect.bottom = MainPlatform.rect.top - 3
                  
         #Gravitasi
         if not self.on_platform() and not self.is_jumping:
