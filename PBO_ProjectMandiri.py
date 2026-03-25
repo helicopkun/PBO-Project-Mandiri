@@ -17,6 +17,7 @@ RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+GOLD = (255, 215, 0)
 
 class GameObject: #Circle Hitbox
     def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10):
@@ -34,7 +35,7 @@ class GameObject: #Circle Hitbox
 
 MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, HEIGHT - 300)
 class Player(GameObject):
-    def __init__(self, sizeHitbox = 5): #customize player, offset = character size
+    def __init__(self, sizeHitbox = 10): #customize player, offset = character size
         super().__init__(x= 15, y=MainPlatform.rect.top, width=25, height=25, hitbox_radius=sizeHitbox)
         self.sizeHitbox = sizeHitbox
         self.speedX = 400
@@ -62,14 +63,42 @@ class Player(GameObject):
         self.current_platform = MainPlatform
         self.platform_group = None
         
+        self.is_parrying = False
+        self.parry_key_pressed = False
+        self.parry_duration = 0.3  # Window parry
+        self.parry_timer = 0
+        self.parry_cd = 1  
+        self.parry_cd_timer = 0
+        self.parry_radius = 10
+        self.parry_color = GOLD
+        
     def update(self, keys, dt, platforms):
         self.platform_group = platforms
 
+        #Hit Grace      
         if self.player_hit and pygame.time.get_ticks() - self.hit_time >= self.hit_grace:
             self.player_hit = False
-            
-        self.move(keys, dt)
+        
+        #Parry
+        if (keys[pygame.K_k] or keys[pygame.MOUSEBUTTONDOWN]) and not (self.player_hit or self.is_flying):
+            if not self.parry_key_pressed and not self.is_parrying and self.parry_cd_timer <= 0:
+                self.is_parrying = True
+                self.parry_timer = self.parry_duration
+                self.parry_cd_timer = self.parry_cd
+                self.parry_key_pressed = True
+        else:
+            self.parry_key_pressed = False
 
+        if self.is_parrying:
+            self.parry_timer -= dt
+            if self.parry_timer <= 0:
+                self.is_parrying = False
+        
+        if self.parry_cd_timer > 0:
+            self.parry_cd_timer -= dt
+
+        #Movement
+        self.move(keys, dt)
         if self.is_flying: self.hitbox_radius = 0
         else:              self.hitbox_radius = self.sizeHitbox
 
@@ -85,17 +114,14 @@ class Player(GameObject):
         if self.player_hit: player_color = RED     
         else: player_color = WHITE
         if self.is_flying: player_color = BLUE
-
-        if self.player_hit:
-            current_time = pygame.time.get_ticks()
-            if current_time - self.hit_time >= self.hit_grace:
-                self.player_hit = False
         
         if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): # Efek kedip saat kena hit
             self.draw_Hitbox(surface, player_color)
 
-
         pygame.draw.rect(surface, player_color, self.rect, 2)
+
+        if self.is_parrying:
+            pygame.draw.circle(surface, self.parry_color, self.rect.center, self.hitbox_radius + self.parry_radius, 3)
 
         if self.fly_bar < self.fly_barMax:
             pygame.draw.rect(surface, BLUE, self.fly_bar_rect)
@@ -238,7 +264,7 @@ class Bullet(GameObject):
                 if self.rect.bottom > platform.rect.top and self.rect.top < platform.rect.bottom:
                     return True
         
-        return self.rect.right < -20 or self.rect.left > WIDTH + 20
+        return self.rect.right < -20 or self.rect.left > WIDTH + 20 or self.rect.top > HEIGHT
         
 
 def circle_collide(c1_pos, r1, c2_pos, r2):
@@ -261,7 +287,7 @@ Platforms2 = [MainPlatform]
 Platforms2.append(GameObject(400, HEIGHT//4, 200, 10))
 
 # Player 
-tes = Player()
+tes = Player(sizeHitbox=5)
 hit_counter = 0
 
 # Enemy
@@ -292,15 +318,24 @@ while running: #.tick(framerate) mengembalikan waktu ms antar frame
         enemy.fire(dt)
         
         #Check i-frame & kolisi
-        if not tes.is_flying and not tes.player_hit:
-            if circle_collide(tes.rect.center, tes.hitbox_radius, enemy.rect.center, enemy.hitbox_radius):
+        current_radius = tes.hitbox_radius + (tes.parry_radius if tes.is_parrying else 0) 
+        if circle_collide(tes.rect.center, current_radius, enemy.rect.center, enemy.hitbox_radius):
+            if tes.is_parrying and not tes.is_flying:
                 enemies.remove(enemy)
+                tes.fly_bar = min(tes.fly_barMax, tes.fly_bar + 0.5)
+                pygame.time.delay(50)
+                print("PARRY! +Fly Bar\n")
+                continue
+            
+            if not tes.is_flying and not tes.player_hit:
+                enemies.remove(enemy)
+                parried = False
                 hit_counter = hit_counter + 1
                 print(f"Ouch! You got hit! x{hit_counter} time(s)\n")
                 tes.hit_time = pygame.time.get_ticks()
                 tes.player_hit = True
                 continue
-
+        
         if enemy.collided(Platforms):
             enemies.remove(enemy)
 
@@ -308,8 +343,6 @@ while running: #.tick(framerate) mengembalikan waktu ms antar frame
     # Draw objects 
     screen.fill(BLACK)
     
-    
-
     for platform in Platforms:
         pygame.draw.rect(screen, GREEN, platform.rect)
     
