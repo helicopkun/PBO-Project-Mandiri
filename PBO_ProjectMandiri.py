@@ -8,7 +8,7 @@ WIDTH = 600
 HEIGHT = 400
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-MainPlatform = pygame.Rect(0, HEIGHT//1.5, WIDTH, HEIGHT//2)   
+   
 pygame.display.set_caption("Dodge / parry this")
 
 CYAN = (0, 255, 255)
@@ -18,33 +18,35 @@ GREEN = (0, 255, 0)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
-def circle_collide(c1_pos, r1, c2_pos, r2):
-    dx = c1_pos[0] - c2_pos[0] 
-    dy = c1_pos[1] - c2_pos[1]
-    
-    return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 adalah rumus kolisi lingkaran
+
 
 class GameObject: #Circle Hitbox
-    def __init__ (self, x, y, hitbox_radius = 10):
+    def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10):
         self.hitbox_radius = hitbox_radius
-        self.size = self.hitbox_radius * 2
+        self.width = width
+        self.height = height
         self.rect = pygame.Rect(0, 0,
-                                self.size, self.size)
+                                self.width, self.height)
         self.rect.center = (x, y)
     
     def draw_Hitbox(self, surface, color = WHITE): #draw hitbox circle
         pygame.draw.circle(surface, color,
                             self.rect.center, self.hitbox_radius) 
 
+
+MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, HEIGHT - 300)
+Platforms = [MainPlatform]
+
 class Player(GameObject):
-    sizeHitbox = 5 #customize player size & hitbox offset
-    offset = 10
-    
-    def __init__(self, x = sizeHitbox + 10, y = MainPlatform.top, hitbox_radius=sizeHitbox):
-        super().__init__(x, y, hitbox_radius)
-        self.size += self.offset
-        self.rect.width = self.size
-        self.rect.height = self.size
+    def __init__(self, sizeHitbox = 10, offset = 15): #customize player
+        super().__init__(x=sizeHitbox + 10, y=MainPlatform.rect.top)
+        self.sizeHitbox = sizeHitbox
+        self.hitbox_radius = sizeHitbox
+        self.width += offset
+        self.height += offset
+        self.rect.width = self.width
+        self.rect.height = self.height
+        self.platform = MainPlatform
 
         self.speedX = 400
         self.speedY = 400
@@ -65,11 +67,15 @@ class Player(GameObject):
         self.air_time = 0
         self.air_delay = 0.1 # airborne
         
-        
 
     def on_platform(self):
-        return self.rect.bottom >= MainPlatform.top - 3
-
+        for platform in Platforms:
+            if self.rect.bottom >= platform.rect.top - 3 and (
+                self.rect.right > platform.rect.left and self.rect.left < platform.rect.right
+            ):
+                self.platform = platform
+                return True
+        return False
     
     def move(self, keys, dt):
         #Flying movement
@@ -108,16 +114,16 @@ class Player(GameObject):
                 dx /= length
                 dy /= length
         
-            if self.rect.left > 0 + 5 or self.rect.right < WIDTH - 5:
+            if self.rect.left > 0 + 5 and self.rect.right < WIDTH - 5:
                 self.rect.centerx += dx * self.speedX * dt
-                
-            if self.rect.top > 0 + 3 or self.rect.bottom < MainPlatform.top - 3:
+            
+            if self.rect.top > 0 + 3 or self.rect.bottom < self.platform.rect.top - 3:
                 self.rect.centery += dy * self.speedY * dt
             
             if self.rect.left < 0 + 5:                  self.rect.left = 0 + 5
             if self.rect.right > WIDTH - 5:             self.rect.right = WIDTH - 5
             if self.rect.top < 0 + 3:                   self.rect.top = 0 + 3
-            if self.rect.bottom > MainPlatform.top - 3: self.rect.bottom = MainPlatform.top - 3
+            if self.rect.bottom > MainPlatform.rect.top - 3: self.rect.bottom = MainPlatform.rect.top - 3
             return #agar tidak double dari movement biasa 
 
 
@@ -132,7 +138,7 @@ class Player(GameObject):
                     self.rect.right = WIDTH - 5
 
         #Vertical movement
-        if keys[pygame.K_s] and not self.on_platform():
+        if keys[pygame.K_s] and not self.rect.bottom >= MainPlatform.rect.top - 3:
             self.rect.centery += self.speedY * dt
         if (keys[pygame.K_w] or keys[pygame.K_SPACE]) and (not keys[pygame.K_s]
                                                 and self.on_platform() 
@@ -154,10 +160,10 @@ class Player(GameObject):
                 self.is_jumping = False
 
         #Reset airborne, kondisi jump, etc jika berada di platform
-        if self.on_platform():
+        if self.on_platform() and not keys[pygame.K_s]:
             self.jump_delay += dt
             self.air_time = 0
-            self.rect.bottom = MainPlatform.top - 3
+            self.rect.bottom = self.platform.rect.top - 3
             self.is_jumping = False
                  
         #Gravitasi
@@ -178,13 +184,13 @@ class Bullet(GameObject):
 
             elif side == 'right': # Move left
                 x = WIDTH + 20
-                y = random.randint(0, MainPlatform.top)
+                y = random.randint(0, MainPlatform.rect.top)
                 self.vx = random.uniform(-300, -150) 
                 self.vy = random.uniform(-50, 50)
 
             else: # left # Move right
                 x = -20
-                y = random.randint(0, MainPlatform.top)
+                y = random.randint(0, MainPlatform.rect.top)
                 self.vx = random.uniform(150, 300) 
                 self.vy = random.uniform(-50, 50)
 
@@ -197,10 +203,17 @@ class Bullet(GameObject):
         self.rect.centery += self.vy * dt
         
     def is_offscreen(self):
-        # Returns True if the projectile has completely left the screen
         return (self.rect.right < -20 or self.rect.left > WIDTH + 20 or 
-                self.rect.top > MainPlatform.top)
+                self.rect.top > MainPlatform.rect.top)
 
+def circle_collide(c1_pos, r1, c2_pos, r2):
+    dx = c1_pos[0] - c2_pos[0] 
+    dy = c1_pos[1] - c2_pos[1]
+    
+    return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
+
+
+Platforms.append(GameObject(15, HEIGHT//2, 200))
 
 tes = Player()
 enemies = [] # List bullet
@@ -216,7 +229,6 @@ running = True
 while running: #.tick(framerate) mengembalikan waktu ms antar frame
     dt = clock.tick(60) / 1000  # mengembalikan ms / 1000 = sekon
     screen.fill(BLACK)
-    pygame.draw.rect(screen, GREEN, MainPlatform)
     keys = pygame.key.get_pressed()
 
     for event in pygame.event.get():
@@ -264,17 +276,22 @@ while running: #.tick(framerate) mengembalikan waktu ms antar frame
 
     fly_bar_rect = pygame.Rect(0, 0, tes.fly_bar * 50, 10)
     fly_bar_rect.centerx = tes.rect.centerx
-    fly_bar_rect.centery = tes.rect.centery + 20
+    fly_bar_rect.centery = tes.rect.centery + 30
 
     fly_bar_rectMax = pygame.Rect(0, 0, tes.fly_barMax * 50 + 5, 15)
     fly_bar_rectMax.centerx = tes.rect.centerx
-    fly_bar_rectMax.centery = tes.rect.centery + 20
+    fly_bar_rectMax.centery = tes.rect.centery + 30
+
+    for enemy in enemies:
+        enemy.draw_Hitbox(screen, enemy.color)
+
+    for platform in Platforms:
+        pygame.draw.rect(screen, GREEN, platform)
 
     pygame.draw.rect(screen, BLUE, fly_bar_rect)
     pygame.draw.rect(screen, CYAN, fly_bar_rectMax, 2)
     
-    for enemy in enemies:
-        enemy.draw_Hitbox(screen, enemy.color)
+    
     
 
 
