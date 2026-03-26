@@ -4,13 +4,15 @@ import random
 import math
 
 pygame.init()
+pygame.font.init()
 
 WIDTH = 1600
 HEIGHT = 900
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-   
-pygame.display.set_caption("Dodge / parry this")
+screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Untuk UI
+pygame.display.set_caption("Dodge / Parry This: Boss Rush")
+
+UI_FONT = pygame.font.SysFont("Impact", 32)
 
 CYAN = (0, 255, 255)
 BLUE = (0, 0, 255)
@@ -19,29 +21,58 @@ GREEN = (0, 255, 0)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GOLD = (255, 215, 0)
+PURPLE = (148, 0, 211)
+ORANGE = (255, 165, 0)
 
 class GameObject: #Circle Hitbox
     def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10):
         self.hitbox_radius = hitbox_radius
         self.width = width
         self.height = height
-        self.rect = pygame.Rect(0, 0,
-                                self.width, self.height)
+        self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
     
     def draw_Hitbox(self, surface, color = WHITE): #draw hitbox circle
-        pygame.draw.circle(surface, color,
-                            self.rect.center, self.hitbox_radius) 
-
+        pygame.draw.circle(surface, color, self.rect.center, self.hitbox_radius) 
 
 MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, HEIGHT - 300)
+
+class Particle:
+    def __init__(self, x, y, color=GOLD, is_burst=False):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.size = random.uniform(4, 8)
+        self.lifetime = random.uniform(0.2, 0.5)
+        self.max_lifetime = self.lifetime
+        
+        angle = random.uniform(0, math.pi * 2)
+        speed = random.uniform(150, 400) if is_burst else random.uniform(50, 150) # make them shoot out faster
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+
+    def update(self, dt):
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.lifetime -= dt
+
+    def draw(self, surface):
+        if self.lifetime > 0:
+            current_size = max(0.1, self.size * (self.lifetime / self.max_lifetime)) # Slowly shrink
+            pygame.draw.rect(surface, self.color, (self.x, self.y, current_size, current_size))
+
 class Player(GameObject):
-    def __init__(self, sizeHitbox = 10): #customize player, offset = character size
+    def __init__(self, sizeHitbox=10, max_hp=5, name = "Player"): #customize player, offset = character size
         super().__init__(x= 15, y=MainPlatform.rect.top, width=25, height=25, hitbox_radius=sizeHitbox)
+        self.name = name
         self.sizeHitbox = sizeHitbox
         self.speedX = 400
         self.speedY = 400
         self.gravity = 250
+
+        self.max_hp = max_hp
+        self.hp = self.max_hp
+        self.parry_count = 0 
 
         self.player_hit = False # hit grace setelah kena hit
         self.hit_time = 0
@@ -70,8 +101,16 @@ class Player(GameObject):
         self.parry_timer = 0
         self.parry_cd = 1  
         self.parry_cd_timer = 0
-        self.parry_radius = 10
+        self.parry_radius = 15
         self.parry_color = GOLD
+
+        self.facing_right = True
+        self.attack_cd = 3
+        self.attack_cd_timer = 0
+        self.is_attacking = False
+        self.attack_duration = 0.15
+        self.attack_timer = 0
+        self.attack_rect = pygame.Rect(0,0,0,0)
         
     def update(self, keys, dt, platforms):
         self.platform_group = platforms
@@ -80,8 +119,8 @@ class Player(GameObject):
         if self.player_hit and pygame.time.get_ticks() - self.hit_time >= self.hit_grace:
             self.player_hit = False
         
-        #Parry
-        if (keys[pygame.K_k] or keys[pygame.MOUSEBUTTONDOWN]) and not (self.player_hit or self.is_flying):
+        #Parry 
+        if keys[pygame.K_k] and not (self.player_hit or self.is_flying or self.is_attacking):
             if not self.parry_key_pressed and not self.is_parrying and self.parry_cd_timer <= 0:
                 self.is_parrying = True
                 self.parry_timer = self.parry_duration
@@ -90,6 +129,7 @@ class Player(GameObject):
         else:
             self.parry_key_pressed = False
 
+            # Cooldown parry
         if self.is_parrying:
             self.parry_timer -= dt
             if self.parry_timer <= 0:
@@ -97,6 +137,37 @@ class Player(GameObject):
         
         if self.parry_cd_timer > 0:
             self.parry_cd_timer -= dt
+
+        #Attack
+        if keys[pygame.K_j] and not (self.attack_cd_timer > 0 or self.is_flying or self.is_parrying):
+            self.is_attacking = True
+            self.attack_timer = self.attack_duration
+            self.attack_cd_timer = self.attack_cd
+            
+            att_width = self.width * 2 
+            att_height = self.height * 2
+            #Initial pos
+            if self.facing_right: ax = self.rect.right
+            else:                 ax = self.rect.left - att_width
+            ay = self.rect.centery - (att_height / 2)
+            
+            self.attack_rect = pygame.Rect(ax, ay, att_width, att_height)
+
+            # Update pos attack
+        if self.is_attacking:
+            if self.facing_right: self.attack_rect.left = self.rect.right
+            else:                 self.attack_rect.right = self.rect.left
+            self.attack_rect.centery = self.rect.centery
+        else: self.attack_rect = pygame.Rect(0,0,0,0)
+
+            # Cooldown attack
+        if self.is_attacking:
+            self.attack_timer -= dt
+            if self.attack_timer <= 0: 
+                self.is_attacking = False
+
+        if self.attack_cd_timer > 0: 
+            self.attack_cd_timer -= dt
 
         #Movement
         self.move(keys, dt)
@@ -108,7 +179,7 @@ class Player(GameObject):
         self.fly_bar_rectMax.centerx = self.rect.centerx
         self.fly_bar_rectMax.centery = self.rect.bottom + 10
         self.fly_bar_rect = pygame.Rect(self.fly_bar_rectMax.left, self.fly_bar_rectMax.top,
-                                        self.fly_bar * 50, 10)
+                                        self.fly_bar * 50, self.fly_bar_rectMax.height)
                 
     def draw(self, surface):
         if self.player_hit: player_color = RED     
@@ -117,16 +188,17 @@ class Player(GameObject):
         
         if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): # Efek kedip saat kena hit
             self.draw_Hitbox(surface, player_color)
-
         pygame.draw.rect(surface, player_color, self.rect, 2)
 
         if self.is_parrying:
             pygame.draw.circle(surface, self.parry_color, self.rect.center, self.hitbox_radius + self.parry_radius, 3)
 
+        if self.is_attacking:
+            pygame.draw.rect(surface, RED, self.attack_rect, 2)
+
         if self.fly_bar < self.fly_barMax:
             pygame.draw.rect(surface, BLUE, self.fly_bar_rect)
             pygame.draw.rect(surface, CYAN, self.fly_bar_rectMax, 2)
-
 
     def on_platform(self):
         for platform in self.platform_group:
@@ -139,6 +211,8 @@ class Player(GameObject):
         return False
     
     def move(self, keys, dt):
+        if keys[pygame.K_a]: self.facing_right = False
+        if keys[pygame.K_d]: self.facing_right = True
         #Flying movement
         if keys[pygame.K_LSHIFT]:
             if self.fly_bar > 0:
@@ -172,16 +246,14 @@ class Player(GameObject):
                 dx /= length
                 dy /= length
         
-            if self.rect.left > 0 and self.rect.right < WIDTH:
-                self.rect.centerx += dx * self.speedX * dt
+            self.rect.centerx += dx * self.speedX * dt
+            self.rect.left = max(0, self.rect.left)
+            self.rect.right = min(WIDTH, self.rect.right)
             
-            if self.rect.top > 0 and self.rect.bottom <= MainPlatform.rect.top:
-                self.rect.centery += dy * self.speedY * dt
+            self.rect.centery += dy * self.speedY * dt
+            self.rect.top = max(0, self.rect.top)
+            self.rect.bottom = min(MainPlatform.rect.top, self.rect.bottom)
             
-            if self.rect.left < 0 :                      self.rect.left = 0 
-            if self.rect.right > WIDTH :                 self.rect.right = WIDTH 
-            if self.rect.top < 0 :                       self.rect.top = 0 
-            if self.rect.bottom > MainPlatform.rect.top: self.rect.bottom = MainPlatform.rect.top
             return #agar tidak double dari movement biasa 
 
         #Horizontal movement
@@ -228,73 +300,155 @@ class Player(GameObject):
             if self.air_time > self.air_delay: # Airborne
                 self.rect.centery += self.gravity * dt
 
-class Bullet(GameObject):
-    def __init__(self, pattern = None):
-        if pattern is None: # Random pattern
-            side = random.choice(['top', 'right', 'left'])
-            if side == 'top': # Fall down
-                x = random.randint(0, WIDTH) 
-                y = -20
-                self.vx = random.uniform(-100, 100) #v = velocity x or y
-                self.vy = random.uniform(150, 300) 
+class Boss(GameObject):
+    def __init__(self, name, phase_data): 
+        self.phases = phase_data
+        self.total_phases = len(phase_data)
+        self.current_phase = 1
+        # data phase 1
+        start_y = self.phases[self.current_phase]['y-axis']
+        super().__init__(x=WIDTH//2, y=start_y, width=60, height=60, hitbox_radius=30)
+        self.name = name
+        self.max_hp = self.phases[self.current_phase]['max_hp']
+        self.hp = self.max_hp
+        self.is_hit = False
+        self.hit_time = 0
+        self.hit_grace = 2200
+        self.alive = True
 
-            elif side == 'right': # Move left
-                x = WIDTH + 20
-                y = random.randint(0, MainPlatform.rect.top)
-                self.vx = random.uniform(-300, -150) 
-                self.vy = random.uniform(-50, 50)
+        self.base_y = float(start_y)
+        self.bop_amplitude = 25
+        self.bop_frequency = 3
 
-            else: # left # Move right
-                x = -20
-                y = random.randint(0, MainPlatform.rect.top)
-                self.vx = random.uniform(150, 300) 
-                self.vy = random.uniform(-50, 50)
+        self.direction = 1 # 1 for right, -1 for left
+        self.fire_timer = 0
+        
+    def update(self, dt, player, bullet_list):
+        if not self.alive: return
+        
+        if self.is_hit and pygame.time.get_ticks() - self.hit_time >= self.hit_grace:
+            self.is_hit = False
 
+        phase = self.phases[self.current_phase]
+        target_phase_y = phase['y-axis']
+
+        #Transition phase movement
+        if abs(self.base_y - target_phase_y) > 2:
+            if self.base_y < target_phase_y:
+                self.base_y += 100 * dt
+            else:
+                self.base_y -= 100 * dt
+
+        # Bop movement
+        time = pygame.time.get_ticks() / 1000
+        bop_offset = math.sin(time * self.bop_frequency) * self.bop_amplitude
+
+        self.rect.centery = self.base_y + bop_offset
+
+        # Movement Flight Loop (Left/Right)
+        self.rect.x += phase['move_speed'] * self.direction * dt
+        if self.rect.right > WIDTH - 100:
+            self.direction = -1
+        elif self.rect.left < 100:
+            self.direction = 1
+            
+        # Shooting logic
+        self.fire_timer -= dt
+        if self.fire_timer <= 0:
+            self.fire_timer = phase['rate']
+            self.shoot(player, bullet_list, phase)
+            
+    def shoot(self, player, bullet_list, phase_data):
+        pattern = phase_data['pattern']
+        num_bullets = phase_data['num_bullet']
+        spd = phase_data['bullet_spd']
+        size = phase_data['bullet_size']
+        color = phase_data['color']
+        cx, cy = self.rect.center
+        
         if pattern == 'fan':
-            num_bullets = int(pattern.split('_')[1]) # Extract number (e.g., 3, 5, 7)
             angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
             spread = math.radians(20) # 20 degrees between each bullet
             
-            # Start angle so that the middle bullet aims exactly at the player
+            # middle bullet aims exactly at the player
             start_angle = angle_to_player - (spread * (num_bullets // 2))
             
             for i in range(num_bullets):
                 a = start_angle + (spread * i)
                 bx = math.cos(a) * spd
                 by = math.sin(a) * spd
-                enemy_list.append(Bullet(cx, cy, bx, by, color))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color))
                 
-        elif pattern == 'circle':
-            num_bullets = int(pattern.split('_')[1])
+        if pattern == 'circle':
             step = (math.pi * 2) / num_bullets
             for i in range(num_bullets):
                 a = step * i
                 bx = math.cos(a) * spd
                 by = math.sin(a) * spd
-                enemy_list.append(Bullet(cx, cy, bx, by, color))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color))
                 
-        elif pattern == 'chaos':
-            for _ in range(3):
+        if pattern == 'chaos': # Random from inside boss
+            for i in range(num_bullets):
                 a = random.uniform(0, math.pi * 2)
                 bx = math.cos(a) * spd
                 by = math.sin(a) * spd
-                enemy_list.append(Bullet(cx, cy, bx, by, color))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color))
 
-        super().__init__(x, y, hitbox_radius=8)
-        self.color = CYAN
+        if pattern == 'random': # Random entire screen
+            for i in range(num_bullets):
+                side = random.choice(['top', 'right', 'left'])
+                if side == 'top': # Fall down
+                    cx = random.randint(0, WIDTH) 
+                    cy = -20
+                    bx = random.uniform(-100, 100) #v = velocity x or y
+                    by = random.uniform(150, 300) 
+                elif side == 'right': # Move left
+                    cx = WIDTH + 20
+                    cy = random.randint(0, MainPlatform.rect.top)
+                    bx = random.uniform(-300, -150) 
+                    by = random.uniform(-50, 50)
+                else: # left # Move right
+                    cx = -20
+                    cy = random.randint(0, MainPlatform.rect.top)
+                    bx = random.uniform(150, 300) 
+                    by = random.uniform(-50, 50)
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color))
+                
+    def take_damage(self):
+        self.hp -= 1
+        spawn_particles(self.rect.centerx, self.rect.centery, color=RED, count=10) # Hit feedback
+        if self.hp <= 0:
+            self.current_phase += 1
+            self.change_phase()
+            
+    def change_phase(self):
+        spawn_particles(self.rect.centerx, self.rect.centery, color=GOLD, count=30, is_burst=True) # Trigger massive death particle burst each transition 
+        if self.current_phase > self.total_phases:
+            self.alive = False # Boss defeated!
+        else:
+            self.max_hp = self.phases[self.current_phase]['max_hp']
+            self.hp = self.max_hp
+            
+    def draw(self, surface):
+        if not self.alive: return
+        color = self.phases[self.current_phase]['color']
+        pygame.draw.rect(surface, color, self.rect, 4)
 
-    def fire(self, dt):
+#Projectile class where it will keep going until out of bounds
+class Bullet(GameObject):
+    def __init__(self, x, y, vx, vy, hitbox_radius = 8, color=CYAN):
+        super().__init__(x, y, hitbox_radius=hitbox_radius)
+        self.vx = vx
+        self.vy = vy
+        self.color = color
+
+    def update(self, dt):
         self.rect.centerx += self.vx * dt
         self.rect.centery += self.vy * dt
         
-    def collided(self, platforms):
-        for platform in platforms:
-            if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right:
-                if self.rect.bottom > platform.rect.top and self.rect.top < platform.rect.bottom:
-                    return True
-        
-        return self.rect.right < -20 or self.rect.left > WIDTH + 20 or self.rect.top > HEIGHT
-        
+    def out_of_bounds(self):
+        return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > HEIGHT or self.rect.bottom < -50
+      
 
 def circle_collide(c1_pos, r1, c2_pos, r2):
     dx = c1_pos[0] - c2_pos[0] 
@@ -302,9 +456,45 @@ def circle_collide(c1_pos, r1, c2_pos, r2):
     
     return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
 
+particles = []
+def spawn_particles(x, y, color, count=5, is_burst=False):
+    for i in range(count):
+        particles.append(Particle(x, y, color, is_burst))
 
+def draw_ui(surface, player, boss_list):
+    # Player UI
+    p_text = UI_FONT.render(player.name, True, WHITE)
+    surface.blit(p_text, (20, 20))
+    # HP Bar
+    pygame.draw.rect(surface, RED, (20, 60, player.max_hp * 40, 20))
+    pygame.draw.rect(surface, GREEN, (20, 60, player.hp * 40, 20))
+    pygame.draw.rect(surface, WHITE, (20, 60, player.max_hp * 40, 20), 2)
+    
+    # Parry/Heal tracking
+    parry_txt = UI_FONT.render(f"Parry Stack: {player.parry_count}/5", True, GOLD)
+    surface.blit(parry_txt, (20, 90))
+    
+    # Boss UI
+    boss_counter = 0
+    offset = 20
+    for b in boss_list:
+        if b:
+            b_text = UI_FONT.render(f"{b.name} (Phase {min(b.current_phase, b.total_phases)}/{b.total_phases})", True, 
+                                    WHITE if b.alive else RED)
+            b_rect = b_text.get_rect(topright=(WIDTH - 20, 20 + offset * boss_counter))
+            surface.blit(b_text, b_rect)
+            
+            bar_widthMax = 300
+            bar_width = b.hp / b.max_hp * bar_widthMax
+            bar_x = WIDTH - 20 - bar_widthMax
+            pygame.draw.rect(surface, RED, (bar_x, 60 + offset * boss_counter, bar_widthMax, 20))
+            pygame.draw.rect(surface, b.phases[min(b.current_phase, b.total_phases)]['color'], 
+                            (bar_x, 60 + offset * boss_counter, bar_width, 20))
+            pygame.draw.rect(surface, WHITE, (bar_x, 60 + offset * boss_counter, bar_widthMax, 20), 2)
+            boss_counter += 1
+        
 
-# Platform making per level
+# Platform making - stage level
 Platforms = [MainPlatform]
 Platforms.append(GameObject(400, HEIGHT//2, 200, 10))
 Platforms.append(GameObject(400, HEIGHT//3, 200, 10))
@@ -313,74 +503,135 @@ Platforms.append(GameObject(15, HEIGHT//2, 200))
 Platforms.append(GameObject(1500, HEIGHT//2, 200, 10))
 
 Platforms2 = [MainPlatform]
-Platforms2.append(GameObject(400, HEIGHT//4, 200, 10))
+Platforms2.append(GameObject(400, HEIGHT//2, 200, 10))
+Platforms2.append(GameObject(900, HEIGHT//2, 200, 15))
 
 # Player 
-tes = Player(sizeHitbox=5)
-hit_counter = 0
+PlayerTest = Player(sizeHitbox=5, max_hp=5, name="Heli")
 
-# Enemy
-enemies = [] # List bullet
-spawn_timer = 0
-spawn_rate = 0.5
+# Enemy making DO NOT USE GREEN, BLACK, RED
+boss1_phase = { 
+            1: {'max_hp': 5, 'move_speed': 100, 'y-axis': 150, 'rate': 1.5, 'pattern': 'fan', 
+                'num_bullet': 3, 'bullet_spd': 300, 'bullet_size': 8,'color': ORANGE},
+
+            2: {'max_hp': 10, 'move_speed': 200, 'y-axis': 250, 'rate': 1.2, 'pattern': 'fan', 
+                'num_bullet': 5, 'bullet_spd': 350, 'bullet_size': 8,'color': PURPLE},
+
+            3: {'max_hp': 5, 'move_speed': 300, 'y-axis': 150, 'rate': 1.0, 'pattern': 'circle', 
+                'num_bullet': 8, 'bullet_spd': 200, 'bullet_size': 8,'color': BLUE},
+
+            4: {'max_hp': 5, 'move_speed': 450, 'y-axis': 150, 'rate': 0.8, 'pattern': 'fan', 
+                'num_bullet': 7, 'bullet_spd': 400, 'bullet_size': 8,'color': CYAN},
+
+            5: {'max_hp': 5, 'move_speed': 550, 'y-axis': 150, 'rate': 0.4, 'pattern': 'chaos', 
+                'num_bullet': 8, 'bullet_spd': 450, 'bullet_size': 8,'color': GOLD}
+        }
+boss1 = Boss("Kevin", boss1_phase)
+
+# Enemy setup
+bosses = [boss1]
+bullet_list = [] # List bullet
+
+# Screen Shake Variables
+shake_timer = 0
+world_surface = pygame.Surface((WIDTH, HEIGHT))
 
 clock = pygame.time.Clock()
 running = True
-while running: #.tick(framerate) mengembalikan waktu ms antar frame
-    dt = clock.tick(60) / 1000  # mengembalikan ms / 1000 = sekon
+
+while running: 
+    dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
     keys = pygame.key.get_pressed()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
     
-    tes.update(keys, dt, Platforms)
-
-    # Spawn bullets
-    spawn_timer += dt
-    if spawn_timer >= spawn_rate:
-        enemies.append(Bullet())
-        spawn_timer = 0
-        spawn_rate = max(0.10, spawn_rate - 0.005)
+    # Update Entities
+    PlayerTest.update(keys, dt, Platforms)
     
-    for enemy in enemies[:]:
-        enemy.fire(dt)
+    for b in bosses:
+        b.update(dt, PlayerTest, bullet_list)
+
+        if b and b.hp > 0 and PlayerTest.attack_rect.colliderect(b.rect):
+            if not b.is_hit:
+                b.take_damage()
+                b.hit_time = pygame.time.get_ticks()
+                b.is_hit = True
+        
+    
+    for p in particles[:]:
+        p.update(dt)
+        if p.lifetime <= 0:
+            particles.remove(p)
+    
+    for projectile in bullet_list[:]:
+        projectile.update(dt)
+
+        if projectile.out_of_bounds():
+            bullet_list.remove(projectile)
+            continue
         
         #Check i-frame & kolisi
-        current_radius = tes.hitbox_radius + (tes.parry_radius if tes.is_parrying else 0) 
-        if circle_collide(tes.rect.center, current_radius, enemy.rect.center, enemy.hitbox_radius):
-            if tes.is_parrying and not tes.is_flying:
-                enemies.remove(enemy)
-                tes.fly_bar = min(tes.fly_barMax, tes.fly_bar + 0.5)
-                pygame.time.delay(50)
-                print("PARRY! +Fly Bar\n")
+        current_radius = PlayerTest.hitbox_radius + (PlayerTest.parry_radius if PlayerTest.is_parrying else 0) 
+        if circle_collide(PlayerTest.rect.center, current_radius, projectile.rect.center, projectile.hitbox_radius):
+            if PlayerTest.is_parrying and not PlayerTest.is_flying: # Parry
+                bullet_list.remove(projectile)
+                PlayerTest.fly_bar = min(PlayerTest.fly_barMax, PlayerTest.fly_bar + 0.5)
+
+                spawn_particles(projectile.rect.centerx, projectile.rect.centery, GOLD, 6) # Parry Sparks
+                
+                PlayerTest.parry_count += 1
+                if PlayerTest.parry_count >= 5:
+                    PlayerTest.hp = min(PlayerTest.hp + 1, PlayerTest.max_hp)
+                    PlayerTest.parry_count = 0
+                    spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, GREEN, 15) # Heal Sparks
                 continue
             
-            if not tes.is_flying and not tes.player_hit:
-                enemies.remove(enemy)
-                parried = False
-                hit_counter = hit_counter + 1
-                print(f"Ouch! You got hit! x{hit_counter} time(s)\n")
-                tes.hit_time = pygame.time.get_ticks()
-                tes.player_hit = True
+            if not PlayerTest.is_flying and not PlayerTest.player_hit: # Got hit
+                bullet_list.remove(projectile)
+                PlayerTest.hp -= 1
+                PlayerTest.hit_time = pygame.time.get_ticks()
+                PlayerTest.player_hit = True
+                shake_timer = 0.25 # Trigger Screen Shake
+                spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, RED, 10)
+
+                if PlayerTest.hp <= 0:
+                    print("GAME OVER")
+                    running = False
                 continue
         
-        if enemy.collided(Platforms):
-            enemies.remove(enemy)
-
+    if shake_timer > 0:
+        shake_timer -= dt
     
     # Draw objects 
-    screen.fill(BLACK)
+    world_surface.fill(BLACK)
     
     for platform in Platforms:
-        pygame.draw.rect(screen, GREEN, platform.rect)
+        pygame.draw.rect(world_surface, GREEN, platform.rect)
     
-    tes.draw(screen)
+    PlayerTest.draw(world_surface)
+    for b in bosses:
+        b.draw(world_surface)
+        
     
-    for enemy in enemies:
-        enemy.draw_Hitbox(screen, enemy.color)
+    for projectile in bullet_list:
+        projectile.draw_Hitbox(world_surface, projectile.color)
     
+    for p in particles:
+        p.draw(world_surface)
 
+    # Apply Screen Shake to final render
+    shake_x, shake_y = 0, 0
+    if shake_timer > 0:
+        shake_intensity = 8
+        shake_x = random.randint(-shake_intensity, shake_intensity)
+        shake_y = random.randint(-shake_intensity, shake_intensity)
+        
+    screen.blit(world_surface, (shake_x, shake_y))
+    
+    # Draw UI on top of everything (we don't want the UI to shake)
+    draw_ui(screen, PlayerTest, bosses)
 
     pygame.display.update()
 
