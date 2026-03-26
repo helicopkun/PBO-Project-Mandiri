@@ -1,6 +1,7 @@
 import pygame
 import sys
 import random
+import math
 
 pygame.init()
 
@@ -108,8 +109,7 @@ class Player(GameObject):
         self.fly_bar_rectMax.centery = self.rect.bottom + 10
         self.fly_bar_rect = pygame.Rect(self.fly_bar_rectMax.left, self.fly_bar_rectMax.top,
                                         self.fly_bar * 50, 10)
-        
-            
+                
     def draw(self, surface):
         if self.player_hit: player_color = RED     
         else: player_color = WHITE
@@ -250,6 +250,35 @@ class Bullet(GameObject):
                 self.vx = random.uniform(150, 300) 
                 self.vy = random.uniform(-50, 50)
 
+        if pattern == 'fan':
+            num_bullets = int(pattern.split('_')[1]) # Extract number (e.g., 3, 5, 7)
+            angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
+            spread = math.radians(20) # 20 degrees between each bullet
+            
+            # Start angle so that the middle bullet aims exactly at the player
+            start_angle = angle_to_player - (spread * (num_bullets // 2))
+            
+            for i in range(num_bullets):
+                a = start_angle + (spread * i)
+                bx = math.cos(a) * spd
+                by = math.sin(a) * spd
+                enemy_list.append(Bullet(cx, cy, bx, by, color))
+                
+        elif pattern == 'circle':
+            num_bullets = int(pattern.split('_')[1])
+            step = (math.pi * 2) / num_bullets
+            for i in range(num_bullets):
+                a = step * i
+                bx = math.cos(a) * spd
+                by = math.sin(a) * spd
+                enemy_list.append(Bullet(cx, cy, bx, by, color))
+                
+        elif pattern == 'chaos':
+            for _ in range(3):
+                a = random.uniform(0, math.pi * 2)
+                bx = math.cos(a) * spd
+                by = math.sin(a) * spd
+                enemy_list.append(Bullet(cx, cy, bx, by, color))
 
         super().__init__(x, y, hitbox_radius=8)
         self.color = CYAN
