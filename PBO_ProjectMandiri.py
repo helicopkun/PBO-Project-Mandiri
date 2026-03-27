@@ -6,15 +6,15 @@ import math
 pygame.init()
 pygame.font.init()
 
-WIDTH = 1600
-HEIGHT = 900
+WIDTH = 1920
+HEIGHT = 1080
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Untuk UI
 pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name for ts
 # Maidenless ~ a reference to Elden ring where the npc calls us maidenless
 # Danmaku ~ bullet hell in japanese
-
-UI_FONT = pygame.font.SysFont("Impact", 32)
+font_size = 40
+UI_FONT = pygame.font.Font("assets/Cirno.ttf", font_size)
 
 CYAN = (0, 255, 255)
 BLUE = (0, 0, 255)
@@ -28,20 +28,47 @@ ORANGE = (255, 165, 0)
 BROWN = (150, 75, 0)
 GREY = (128, 128, 128)
 YELLOW = (255, 255, 0)
-
+RED2_0 = (238, 75, 43)
 class GameObject: #Circle Hitbox
-    def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10):
+    def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10, image_path = None, 
+                                                    size_offsetx = 0, size_offsety = 0, #only if have image with bad offset
+                                                    pos_offsetx = 0, pos_offsety = 0):
         self.hitbox_radius = hitbox_radius
         self.width = width
         self.height = height
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
-    
+        self.image = image_path
+        self.size_offsetx = size_offsetx
+        self.size_offsety = size_offsety
+        self.pos_offsetx = pos_offsetx
+        self.pos_offsety = pos_offsety
+
+        if image_path:
+            loaded_img = pygame.image.load(image_path).convert_alpha()
+            self.image = pygame.transform.scale(loaded_img, (self.width + size_offsetx, self.height + size_offsety))
+            self.image = self.image
+
+    def draw_image(self, surface, image = None):
+        if image:
+            loaded_img = pygame.image.load(image).convert_alpha()
+            self.image = pygame.transform.scale(loaded_img, (self.width + self.size_offsetx, 
+                                                             self.height + self.size_offsety))
+            self.image = self.image
+
+        if self.image:
+            offsetx = self.pos_offsetx - self.size_offsetx
+            offsety = self.pos_offsety - self.size_offsety
+            self.image_rect = self.rect.copy()
+            self.image_rect.left += offsetx
+            self.image_rect.top += offsety
+            surface.blit(self.image, self.image_rect)
+        else:
+            pygame.draw.rect(surface, WHITE, self.rect, 2)
+
     def draw_Hitbox(self, surface, color = WHITE, hitbox_radius = None, border_width = 0): #draw hitbox circle
         hitbox_radius = self.hitbox_radius if hitbox_radius is None else hitbox_radius
         pygame.draw.circle(surface, color, self.rect.center, hitbox_radius, border_width) 
-
-MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, HEIGHT - 300)
 
 class Particle:
     def __init__(self, x, y, color=GOLD, is_burst=False):
@@ -67,14 +94,23 @@ class Particle:
             current_size = max(0.1, self.size * (self.lifetime / self.max_lifetime)) # Slowly shrink
             pygame.draw.rect(surface, self.color, (self.x, self.y, current_size, current_size))
 
+
+MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, image_path="assets/mainplatform.png", 
+                                                                        size_offsetx=200, 
+                                                                        size_offsety=1200, 
+                                                                        pos_offsetx=100, 
+                                                                        pos_offsety=500)
+
 class Player(GameObject):
-    def __init__(self, sizeHitbox=10, max_hp=5, name = "Player"): #customize player, offset = character size
-        super().__init__(x= 15, y=MainPlatform.rect.top, width=25, height=25, hitbox_radius=sizeHitbox)
+    def __init__(self, sizeHitbox=20, max_hp=5, name = "Player", ): #customize player, offset = character size
+        super().__init__(x= 15, y=MainPlatform.rect.top, width=50, height=100, hitbox_radius=sizeHitbox,
+                         image_path="assets\cirno.png", size_offsetx=70, size_offsety=30,
+                                                        pos_offsetx=35, pos_offsety=19)
         self.name = name
         self.sizeHitbox = sizeHitbox
         self.speedX = 400
         self.speedY = 400
-        self.gravity = 250
+        self.gravity = 350
 
         self.max_hp = max_hp
         self.hp = self.max_hp
@@ -108,7 +144,7 @@ class Player(GameObject):
         self.is_parrying = False
         self.parry_duration = 0.3  # Window parry
         self.parry_cd = 1.5
-        self.parry_radius = 15
+        self.parry_radius = 30
         self.parry_color = GOLD
 
         self.facing = 'right'
@@ -152,8 +188,12 @@ class Player(GameObject):
             self.attack_timer = self.attack_duration
             self.action_cd_timer = self.attack_cd
             #Size
-            att_width = self.width * 2 
-            att_height = self.height * 2
+            if self.facing == 'up' or self.facing == 'down':
+                att_width = self.width * 2 
+                att_height = self.height * 2
+            if self.facing == 'left' or self.facing == 'right':
+                att_width = self.height * 2 
+                att_height = self.width * 2
             #initial Pos
             if self.facing_right: ax = self.rect.right
             else:                 ax = self.rect.left - att_width
@@ -220,19 +260,29 @@ class Player(GameObject):
                                         self.fly_bar_rectMax.height)
                 
     def draw(self, surface):
-        if self.player_hit: player_color = RED     
-        else: player_color = WHITE
-        if self.is_flying: player_color = BLUE
         
-        if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): # Efek kedip saat kena hit
-            self.draw_Hitbox(surface, player_color)
-        pygame.draw.rect(surface, player_color, self.rect, 2)
+
+        if self.facing == 'left' or not self.facing_right:
+            self.draw_image(surface, image="assets/cirno-left.png")
+        if self.facing == 'right' or self.facing_right:
+            self.draw_image(surface, image="assets/cirno.png")
+
+        if self.player_hit: player_color = RED2_0     
+        else: player_color = CYAN
+        if self.is_flying: player_color = BLUE
+
+        #Hitbox and rect for checking
+        #pygame.draw.rect(surface, player_color, self.rect, 2) 
+        # if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): # Efek kedip saat kena hit
+            # pygame.draw.circle(surface, player_color, self.rect.center, self.hitbox_radius/2)
+            # pygame.draw.circle(surface, WHITE, self.rect.center, self.hitbox_radius, 2)
+            #self.draw_Hitbox(surface, player_color)
 
         if self.is_parrying:
             pygame.draw.circle(surface, self.parry_color, self.rect.center, self.hitbox_radius + self.parry_radius, 3)
 
         if self.is_attacking:
-            pygame.draw.rect(surface, RED, self.attack_rect, 2)
+            pygame.draw.rect(surface, RED2_0, self.attack_rect, 2)
 
         if self.action_cd_timer > 0:
             pygame.draw.rect(surface, GREY, self.action_bar_rectMax) # BG
@@ -473,7 +523,7 @@ class Boss(GameObject):
                 
     def take_damage(self):
         self.hp -= 1
-        spawn_particles(self.rect.centerx, self.rect.centery, color=RED, count=10) # Hit feedback
+        spawn_particles(self.rect.centerx, self.rect.centery, color=RED2_0, count=10) # Hit feedback
         if self.hp <= 0:
             self.current_phase += 1
             self.change_phase()
@@ -522,15 +572,15 @@ def spawn_particles(x, y, color, count=5, is_burst=False):
 def draw_ui(surface, player, boss_list):
     # Player UI
     p_text = UI_FONT.render(player.name, True, WHITE)
-    surface.blit(p_text, (20, HEIGHT - 110))
+    surface.blit(p_text, (20, HEIGHT - font_size - 85))
     # HP Bar
-    pygame.draw.rect(surface, RED, (20, HEIGHT - 70, player.max_hp * 40, 20))
-    pygame.draw.rect(surface, GREEN, (20, HEIGHT - 70, player.hp * 40, 20))
-    pygame.draw.rect(surface, WHITE, (20, HEIGHT - 70, player.max_hp * 40, 20), 2)
+    pygame.draw.rect(surface, RED2_0, (20, HEIGHT - font_size - 40, player.max_hp * 40, 20))
+    pygame.draw.rect(surface, GREEN, (20, HEIGHT - font_size - 40, player.hp * 40, 20))
+    pygame.draw.rect(surface, WHITE, (20, HEIGHT - font_size - 40, player.max_hp * 40, 20), 2)
     
     # Parry/Heal tracking
     parry_txt = UI_FONT.render(f"Parry Stack: {player.parry_count}/5", True, GOLD)
-    surface.blit(parry_txt, (20, HEIGHT - 40))
+    surface.blit(parry_txt, (20, HEIGHT - font_size - 10))
     
     # Boss UI
     boss_counter = 0
@@ -538,39 +588,54 @@ def draw_ui(surface, player, boss_list):
     for b in boss_list:
         if b:
             b_text = UI_FONT.render(f"{b.name} (Phase {min(b.current_phase, b.total_phases)}/{b.total_phases})", True, 
-                                    WHITE if b.alive else RED)
-            b_rect = b_text.get_rect(topright=(WIDTH - 20, HEIGHT - 90 + offset * boss_counter))
+                                    WHITE if b.alive else RED2_0)
+            b_rect = b_text.get_rect(topright=(WIDTH - 20, HEIGHT - font_size - 65 + offset * boss_counter))
             
             surface.blit(b_text, b_rect)
             
             bar_widthMax = 300
             bar_width = b.hp / b.max_hp * bar_widthMax
             bar_x = WIDTH - 20 - bar_widthMax
-            pygame.draw.rect(surface, RED, (bar_x, HEIGHT - 50 + offset * boss_counter, bar_widthMax, 20))
+            pygame.draw.rect(surface, RED2_0, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20))
             pygame.draw.rect(surface, b.phases[min(b.current_phase, b.total_phases)]['color'], 
-                            (bar_x, HEIGHT - 50 + offset * boss_counter, bar_width, 20))
-            pygame.draw.rect(surface, WHITE, (bar_x, HEIGHT - 50 + offset * boss_counter, bar_widthMax, 20), 2)
-            pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - 50 + offset * boss_counter,
+                            (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_width, 20))
+            pygame.draw.rect(surface, WHITE, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20), 2)
+            pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - font_size - 20 + offset * boss_counter,
                                                                  20, 20))
             boss_counter += 1
         
 
+#Platform image offset
+plat_size_offsetx=35 
+plat_size_offsety=200 
+plat_pos_offsetx=15
+plat_pos_offsety=100 
+
+def add_plat(plat_list, x, y, w=250, image="assets/platform.png"):
+    plat_list.append(GameObject(x , (HEIGHT - y - 150), w, 15, image_path=image,
+                                size_offsetx=plat_size_offsetx,
+                                size_offsety=plat_size_offsety,
+                                pos_offsetx=plat_pos_offsetx,
+                                pos_offsety=plat_pos_offsety))
+    
+
 # Platform making - stage level
-Platforms = [MainPlatform]
-Platforms.append(GameObject(400, HEIGHT//2, 200, 10))
-Platforms.append(GameObject(400, HEIGHT//3, 200, 10))
-Platforms.append(GameObject(900, HEIGHT//2, 200, 15))
-Platforms.append(GameObject(15, HEIGHT//2, 200))
-Platforms.append(GameObject(1500, HEIGHT//2, 200, 10))
+Platform_list = [MainPlatform]
+add_plat(Platform_list, x=50, y=300)
+add_plat(Platform_list, x=350, y=450)
+add_plat(Platform_list, x=600, y=100)
+add_plat(Platform_list, x=1000, y=100)
+add_plat(Platform_list, x=1200, y=450)
+add_plat(Platform_list, x=1500, y=300)
 
 Platforms2 = [MainPlatform]
 Platforms2.append(GameObject(400, HEIGHT//2, 200, 10))
 Platforms2.append(GameObject(900, HEIGHT//2, 200, 15))
 
 # Player 
-PlayerTest = Player(sizeHitbox=5, max_hp=5, name="Heli")
+PlayerTest = Player(max_hp=5, name="Heli")
 
-# Enemy making DO NOT USE GREEN, BLACK, RED for phase color
+# Enemy making color for phase color
 boss1_phase = { 
             1: {'max_hp': 5, 'move_speed': 100, 'y-axis': 150, 'rate': 1.5, 'pattern': 'fan', 
                 'num_bullet': 4, 'bullet_spd': 300, 'bullet_size': 10,'color': ORANGE},
@@ -607,12 +672,14 @@ boss1 = Boss("And more..", boss1_phase, random.uniform(100, WIDTH - 100), random
 boss2 = Boss("Cubecicle", boss2_phase, random.uniform(100, WIDTH - 100), random.choice([1 , -1]), GREY)
 
 # Enemy setup 
-bosses = [boss1, boss2]
+bosses = [boss1, boss2] #boss1, boss2
 bullet_list = [] # List bullet
 
 # Screen Shake Variables
 shake_timer = 0
 world_surface = pygame.Surface((WIDTH, HEIGHT))
+background_image = pygame.image.load("assets/background.png")
+background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
 
 clock = pygame.time.Clock()
 running = True
@@ -626,7 +693,7 @@ while running:
             running = False
     
     # Update Entities
-    PlayerTest.update(keys, dt, Platforms)
+    PlayerTest.update(keys, dt, Platform_list)
     
     for b in bosses:
         b.update(dt, PlayerTest, bullet_list)
@@ -672,7 +739,7 @@ while running:
                 PlayerTest.hit_time = pygame.time.get_ticks()
                 PlayerTest.player_hit = True
                 shake_timer = 0.25 # Trigger Screen Shake
-                spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, RED, 10)
+                spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, RED2_0, 10)
 
                 if PlayerTest.hp <= 0:
                     print("GAME OVER")
@@ -683,10 +750,12 @@ while running:
         shake_timer -= dt
     
     # Draw objects 
-    world_surface.fill(BLACK)
+    world_surface.blit(background_image, (0,0))
+    # world_surface.fill("background.png")
     
-    for platform in Platforms:
+    for platform in Platform_list:
         pygame.draw.rect(world_surface, BROWN, platform.rect)
+        platform.draw_image(world_surface)
     
     PlayerTest.draw(world_surface)
     for b in bosses:
