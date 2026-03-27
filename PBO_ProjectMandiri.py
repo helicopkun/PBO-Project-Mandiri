@@ -111,6 +111,7 @@ class Player(GameObject):
         self.parry_radius = 15
         self.parry_color = GOLD
 
+        self.facing = 'right'
         self.facing_right = True
         self.is_attacking = False
         self.attack_duration = 0.2 # Window attack
@@ -165,9 +166,19 @@ class Player(GameObject):
 
             # Update pos attack
         if self.is_attacking:
-            if self.facing_right: self.attack_rect.left = self.rect.right
-            else:                 self.attack_rect.right = self.rect.left
-            self.attack_rect.centery = self.rect.centery
+            if self.facing == 'right': 
+                self.attack_rect.left = self.rect.right
+                self.attack_rect.centery = self.rect.centery
+            if self.facing == 'left': 
+                self.attack_rect.right = self.rect.left
+                self.attack_rect.centery = self.rect.centery
+
+            if self.facing == 'up': 
+                self.attack_rect.bottom = self.rect.top
+                self.attack_rect.centerx = self.rect.centerx
+            if self.facing == 'down': 
+                self.attack_rect.top = self.rect.bottom
+                self.attack_rect.centerx = self.rect.centerx
         else: self.attack_rect = pygame.Rect(0,0,0,0)
 
             # Cooldown attack
@@ -244,8 +255,20 @@ class Player(GameObject):
         return False
     
     def move(self, keys, dt):
-        if keys[pygame.K_a]: self.facing_right = False
-        if keys[pygame.K_d]: self.facing_right = True
+        if keys[pygame.K_a]: 
+            self.facing = 'left'
+            self.facing_right = False
+
+        if keys[pygame.K_d]: 
+            self.facing = 'right'
+            self.facing_right = True
+
+        if keys[pygame.K_w]: self.facing = 'up'
+        if keys[pygame.K_s]: self.facing = 'down'
+
+        if not (keys[pygame.K_w] or keys[pygame.K_s]):
+            if self.facing_right: self.facing = 'right'
+            else: self.facing = 'left'
         #Flying movement
         if keys[pygame.K_LSHIFT] and self.action_cd_timer <= 0:
             if self.fly_bar > 0:
