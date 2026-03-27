@@ -10,7 +10,9 @@ WIDTH = 1600
 HEIGHT = 900
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Untuk UI
-pygame.display.set_caption("Dodge / Parry This: Boss Rush")
+pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name for ts
+# Maidenless ~ a reference to Elden ring where the npc calls us maidenless
+# Danmaku ~ bullet hell in japanese
 
 UI_FONT = pygame.font.SysFont("Impact", 32)
 
@@ -23,6 +25,9 @@ BLACK = (0, 0, 0)
 GOLD = (255, 215, 0)
 PURPLE = (148, 0, 211)
 ORANGE = (255, 165, 0)
+BROWN = (150, 75, 0)
+GREY = (128, 128, 128)
+YELLOW = (255, 255, 0)
 
 class GameObject: #Circle Hitbox
     def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10):
@@ -32,8 +37,9 @@ class GameObject: #Circle Hitbox
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
     
-    def draw_Hitbox(self, surface, color = WHITE): #draw hitbox circle
-        pygame.draw.circle(surface, color, self.rect.center, self.hitbox_radius) 
+    def draw_Hitbox(self, surface, color = WHITE, hitbox_radius = None, border_width = 0): #draw hitbox circle
+        hitbox_radius = self.hitbox_radius if hitbox_radius is None else hitbox_radius
+        pygame.draw.circle(surface, color, self.rect.center, hitbox_radius, border_width) 
 
 MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, HEIGHT - 300)
 
@@ -95,21 +101,20 @@ class Player(GameObject):
         self.current_platform = MainPlatform
         self.platform_group = None
         
+        self.action_key_pressed = False
+        self.action_cd_timer = 0 # can act as stamina bar for now, 0 = full
+        self.action_barMax = 1.3
+
         self.is_parrying = False
-        self.parry_key_pressed = False
         self.parry_duration = 0.3  # Window parry
-        self.parry_timer = 0
-        self.parry_cd = 1  
-        self.parry_cd_timer = 0
+        self.parry_cd = 1.5
         self.parry_radius = 15
         self.parry_color = GOLD
 
         self.facing_right = True
-        self.attack_cd = 3
-        self.attack_cd_timer = 0
         self.is_attacking = False
-        self.attack_duration = 0.15
-        self.attack_timer = 0
+        self.attack_duration = 0.2 # Window attack
+        self.attack_cd = 0.8
         self.attack_rect = pygame.Rect(0,0,0,0)
         
     def update(self, keys, dt, platforms):
@@ -119,15 +124,19 @@ class Player(GameObject):
         if self.player_hit and pygame.time.get_ticks() - self.hit_time >= self.hit_grace:
             self.player_hit = False
         
-        #Parry 
-        if keys[pygame.K_k] and not (self.player_hit or self.is_flying or self.is_attacking):
-            if not self.parry_key_pressed and not self.is_parrying and self.parry_cd_timer <= 0:
-                self.is_parrying = True
-                self.parry_timer = self.parry_duration
-                self.parry_cd_timer = self.parry_cd
-                self.parry_key_pressed = True
+        #Action CD, cannot do both action at same time, different CD based on last action
+        if self.action_cd_timer > 0:
+            self.action_cd_timer -= dt
+
+        #Parry - action
+        if keys[pygame.K_l] and not (self.player_hit or self.is_flying or self.is_attacking or
+                                     self.action_cd_timer > 0 or self.action_key_pressed):
+            self.is_parrying = True
+            self.parry_timer = self.parry_duration
+            self.action_cd_timer = self.parry_cd
+            self.action_key_pressed = True
         else:
-            self.parry_key_pressed = False
+            self.action_key_pressed = False
 
             # Cooldown parry
         if self.is_parrying:
@@ -135,23 +144,24 @@ class Player(GameObject):
             if self.parry_timer <= 0:
                 self.is_parrying = False
         
-        if self.parry_cd_timer > 0:
-            self.parry_cd_timer -= dt
-
-        #Attack
-        if keys[pygame.K_j] and not (self.attack_cd_timer > 0 or self.is_flying or self.is_parrying):
+        #Attack - action
+        if keys[pygame.K_k] and not (self.is_flying or self.is_parrying or
+                                     self.action_cd_timer > 0 or self.action_key_pressed):
             self.is_attacking = True
             self.attack_timer = self.attack_duration
-            self.attack_cd_timer = self.attack_cd
-            
+            self.action_cd_timer = self.attack_cd
+            #Size
             att_width = self.width * 2 
             att_height = self.height * 2
-            #Initial pos
+            #initial Pos
             if self.facing_right: ax = self.rect.right
             else:                 ax = self.rect.left - att_width
             ay = self.rect.centery - (att_height / 2)
             
             self.attack_rect = pygame.Rect(ax, ay, att_width, att_height)
+            self.action_key_pressed = True
+        else:
+            self.action_key_pressed = False
 
             # Update pos attack
         if self.is_attacking:
@@ -166,20 +176,37 @@ class Player(GameObject):
             if self.attack_timer <= 0: 
                 self.is_attacking = False
 
-        if self.attack_cd_timer > 0: 
-            self.attack_cd_timer -= dt
-
-        #Movement
-        self.move(keys, dt)
+        #Movement - freeze when parrying
+        if not self.is_parrying:
+            self.move(keys, dt) 
         if self.is_flying: self.hitbox_radius = 0
         else:              self.hitbox_radius = self.sizeHitbox
 
+        # Action bar update - shows the action cooldown 
+        # sedikit berbeda dari flying bar, hanya bisa action jika full bar
+        if not self.facing_right:
+            self.action_bar_rectMax = pygame.Rect(0, 0, 10, self.rect.height * self.action_barMax)
+            self.action_bar_rectMax.centerx = self.rect.right + 10
+            self.action_bar_rectMax.centery = self.rect.centery
+            self.action_bar_rect = pygame.Rect(0, 0, self.action_bar_rectMax.width, 
+                                            self.rect.height * (self.action_barMax - self.action_cd_timer))
+        else:
+            self.action_bar_rectMax = pygame.Rect(0, 0, 10, self.rect.height * self.action_barMax)
+            self.action_bar_rectMax.centerx = self.rect.left - 10
+            self.action_bar_rectMax.centery = self.rect.centery
+            
+        self.action_bar_rect = pygame.Rect(0, 0, self.action_bar_rectMax.width, 
+                                            self.rect.height * (self.action_barMax - self.action_cd_timer))
+        self.action_bar_rect.x = self.action_bar_rectMax.x
+        self.action_bar_rect.bottom = self.action_bar_rectMax.bottom
+
         # Flying bar update
-        self.fly_bar_rectMax = pygame.Rect(0, 0, self.fly_barMax * 50, 10)
+        self.fly_bar_rectMax = pygame.Rect(0, 0, self.rect.width * self.fly_barMax, 10)
         self.fly_bar_rectMax.centerx = self.rect.centerx
         self.fly_bar_rectMax.centery = self.rect.bottom + 10
         self.fly_bar_rect = pygame.Rect(self.fly_bar_rectMax.left, self.fly_bar_rectMax.top,
-                                        self.fly_bar * 50, self.fly_bar_rectMax.height)
+                                        self.rect.width * self.fly_bar, 
+                                        self.fly_bar_rectMax.height)
                 
     def draw(self, surface):
         if self.player_hit: player_color = RED     
@@ -196,9 +223,15 @@ class Player(GameObject):
         if self.is_attacking:
             pygame.draw.rect(surface, RED, self.attack_rect, 2)
 
+        if self.action_cd_timer > 0:
+            pygame.draw.rect(surface, GREY, self.action_bar_rectMax) # BG
+            pygame.draw.rect(surface, YELLOW, self.action_bar_rect)
+            pygame.draw.rect(surface, WHITE, self.action_bar_rectMax, 2)
+
         if self.fly_bar < self.fly_barMax:
+            pygame.draw.rect(surface, GREY, self.fly_bar_rectMax) # BG
             pygame.draw.rect(surface, BLUE, self.fly_bar_rect)
-            pygame.draw.rect(surface, CYAN, self.fly_bar_rectMax, 2)
+            pygame.draw.rect(surface, WHITE, self.fly_bar_rectMax, 2)
 
     def on_platform(self):
         for platform in self.platform_group:
@@ -214,7 +247,7 @@ class Player(GameObject):
         if keys[pygame.K_a]: self.facing_right = False
         if keys[pygame.K_d]: self.facing_right = True
         #Flying movement
-        if keys[pygame.K_LSHIFT]:
+        if keys[pygame.K_LSHIFT] and self.action_cd_timer <= 0:
             if self.fly_bar > 0:
                 self.fly_bar -= dt
                 self.hitbox_radius = 0
@@ -301,14 +334,15 @@ class Player(GameObject):
                 self.rect.centery += self.gravity * dt
 
 class Boss(GameObject):
-    def __init__(self, name, phase_data): 
+    def __init__(self, name, phase_data, start_x = WIDTH//2, direction = 1, circle_color = WHITE): # 1 to go right, -1 to go left 
         self.phases = phase_data
         self.total_phases = len(phase_data)
         self.current_phase = 1
         # data phase 1
         start_y = self.phases[self.current_phase]['y-axis']
-        super().__init__(x=WIDTH//2, y=start_y, width=60, height=60, hitbox_radius=30)
+        super().__init__(x=start_x, y=start_y, width=60, height=60, hitbox_radius=30)
         self.name = name
+        self.circle_color = circle_color
         self.max_hp = self.phases[self.current_phase]['max_hp']
         self.hp = self.max_hp
         self.is_hit = False
@@ -320,7 +354,7 @@ class Boss(GameObject):
         self.bop_amplitude = 25
         self.bop_frequency = 3
 
-        self.direction = 1 # 1 for right, -1 for left
+        self.direction = direction # 1 for right, -1 for left
         self.fire_timer = 0
         
     def update(self, dt, player, bullet_list):
@@ -432,7 +466,8 @@ class Boss(GameObject):
     def draw(self, surface):
         if not self.alive: return
         color = self.phases[self.current_phase]['color']
-        pygame.draw.rect(surface, color, self.rect, 4)
+        self.draw_Hitbox(surface, self.circle_color, 10)
+        pygame.draw.rect(surface, color, self.rect, 10)
 
 #Projectile class where it will keep going until out of bounds
 class Bullet(GameObject):
@@ -447,7 +482,7 @@ class Bullet(GameObject):
         self.rect.centery += self.vy * dt
         
     def out_of_bounds(self):
-        return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > HEIGHT or self.rect.bottom < -50
+        return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > MainPlatform.rect.top or self.rect.bottom < -50
       
 
 def circle_collide(c1_pos, r1, c2_pos, r2):
@@ -464,33 +499,36 @@ def spawn_particles(x, y, color, count=5, is_burst=False):
 def draw_ui(surface, player, boss_list):
     # Player UI
     p_text = UI_FONT.render(player.name, True, WHITE)
-    surface.blit(p_text, (20, 20))
+    surface.blit(p_text, (20, HEIGHT - 110))
     # HP Bar
-    pygame.draw.rect(surface, RED, (20, 60, player.max_hp * 40, 20))
-    pygame.draw.rect(surface, GREEN, (20, 60, player.hp * 40, 20))
-    pygame.draw.rect(surface, WHITE, (20, 60, player.max_hp * 40, 20), 2)
+    pygame.draw.rect(surface, RED, (20, HEIGHT - 70, player.max_hp * 40, 20))
+    pygame.draw.rect(surface, GREEN, (20, HEIGHT - 70, player.hp * 40, 20))
+    pygame.draw.rect(surface, WHITE, (20, HEIGHT - 70, player.max_hp * 40, 20), 2)
     
     # Parry/Heal tracking
     parry_txt = UI_FONT.render(f"Parry Stack: {player.parry_count}/5", True, GOLD)
-    surface.blit(parry_txt, (20, 90))
+    surface.blit(parry_txt, (20, HEIGHT - 40))
     
     # Boss UI
     boss_counter = 0
-    offset = 20
+    offset = -80
     for b in boss_list:
         if b:
             b_text = UI_FONT.render(f"{b.name} (Phase {min(b.current_phase, b.total_phases)}/{b.total_phases})", True, 
                                     WHITE if b.alive else RED)
-            b_rect = b_text.get_rect(topright=(WIDTH - 20, 20 + offset * boss_counter))
+            b_rect = b_text.get_rect(topright=(WIDTH - 20, HEIGHT - 90 + offset * boss_counter))
+            
             surface.blit(b_text, b_rect)
             
             bar_widthMax = 300
             bar_width = b.hp / b.max_hp * bar_widthMax
             bar_x = WIDTH - 20 - bar_widthMax
-            pygame.draw.rect(surface, RED, (bar_x, 60 + offset * boss_counter, bar_widthMax, 20))
+            pygame.draw.rect(surface, RED, (bar_x, HEIGHT - 50 + offset * boss_counter, bar_widthMax, 20))
             pygame.draw.rect(surface, b.phases[min(b.current_phase, b.total_phases)]['color'], 
-                            (bar_x, 60 + offset * boss_counter, bar_width, 20))
-            pygame.draw.rect(surface, WHITE, (bar_x, 60 + offset * boss_counter, bar_widthMax, 20), 2)
+                            (bar_x, HEIGHT - 50 + offset * boss_counter, bar_width, 20))
+            pygame.draw.rect(surface, WHITE, (bar_x, HEIGHT - 50 + offset * boss_counter, bar_widthMax, 20), 2)
+            pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - 50 + offset * boss_counter,
+                                                                 20, 20))
             boss_counter += 1
         
 
@@ -509,27 +547,44 @@ Platforms2.append(GameObject(900, HEIGHT//2, 200, 15))
 # Player 
 PlayerTest = Player(sizeHitbox=5, max_hp=5, name="Heli")
 
-# Enemy making DO NOT USE GREEN, BLACK, RED
+# Enemy making DO NOT USE GREEN, BLACK, RED for phase color
 boss1_phase = { 
             1: {'max_hp': 5, 'move_speed': 100, 'y-axis': 150, 'rate': 1.5, 'pattern': 'fan', 
-                'num_bullet': 3, 'bullet_spd': 300, 'bullet_size': 8,'color': ORANGE},
+                'num_bullet': 4, 'bullet_spd': 300, 'bullet_size': 10,'color': ORANGE},
 
-            2: {'max_hp': 10, 'move_speed': 200, 'y-axis': 250, 'rate': 1.2, 'pattern': 'fan', 
+            2: {'max_hp': 8, 'move_speed': 200, 'y-axis': 250, 'rate': 2, 'pattern': 'random', 
                 'num_bullet': 5, 'bullet_spd': 350, 'bullet_size': 8,'color': PURPLE},
 
-            3: {'max_hp': 5, 'move_speed': 300, 'y-axis': 150, 'rate': 1.0, 'pattern': 'circle', 
-                'num_bullet': 8, 'bullet_spd': 200, 'bullet_size': 8,'color': BLUE},
+            3: {'max_hp': 6, 'move_speed': 250, 'y-axis': 350, 'rate': 1.0, 'pattern': 'circle', 
+                'num_bullet': 8, 'bullet_spd': 400, 'bullet_size': 15,'color': BLUE},
 
-            4: {'max_hp': 5, 'move_speed': 450, 'y-axis': 150, 'rate': 0.8, 'pattern': 'fan', 
-                'num_bullet': 7, 'bullet_spd': 400, 'bullet_size': 8,'color': CYAN},
+            4: {'max_hp': 4, 'move_speed': 100, 'y-axis': 400, 'rate': 0.8, 'pattern': 'fan', 
+                'num_bullet': 7, 'bullet_spd': 400, 'bullet_size': 7,'color': CYAN},
 
-            5: {'max_hp': 5, 'move_speed': 550, 'y-axis': 150, 'rate': 0.4, 'pattern': 'chaos', 
-                'num_bullet': 8, 'bullet_spd': 450, 'bullet_size': 8,'color': GOLD}
+            5: {'max_hp': 3, 'move_speed': 550, 'y-axis': 150, 'rate': 0.4, 'pattern': 'chaos', 
+                'num_bullet': 8, 'bullet_spd': 450, 'bullet_size': 9,'color': GOLD}
         }
-boss1 = Boss("Kevin", boss1_phase)
+boss2_phase = { 
+            1: {'max_hp': 6, 'move_speed': 350, 'y-axis': 200, 'rate': 0.8, 'pattern': 'chaos', 
+                'num_bullet': 4, 'bullet_spd': 400, 'bullet_size': 8, 'color': ORANGE},
 
-# Enemy setup
-bosses = [boss1]
+            2: {'max_hp': 8, 'move_speed': 100, 'y-axis': 450, 'rate': 0.5, 'pattern': 'random', 
+                'num_bullet': 3, 'bullet_spd': 300, 'bullet_size': 12, 'color': PURPLE},
+
+            3: {'max_hp': 10, 'move_speed': 400, 'y-axis': 150, 'rate': 1.2, 'pattern': 'circle', 
+                'num_bullet': 16, 'bullet_spd': 250, 'bullet_size': 6, 'color': BLUE},
+
+            4: {'max_hp': 7, 'move_speed': 600, 'y-axis': 300, 'rate': 0.4, 'pattern': 'random', 
+                'num_bullet': 5, 'bullet_spd': 500, 'bullet_size': 7, 'color': CYAN},
+
+            5: {'max_hp': 12, 'move_speed': 700, 'y-axis': 200, 'rate': 0.2, 'pattern': 'chaos', 
+                'num_bullet': 10, 'bullet_spd': 450, 'bullet_size': 10, 'color': GOLD}
+        }
+boss1 = Boss("And more..", boss1_phase, random.uniform(100, WIDTH - 100), random.choice([1 , -1]), WHITE)
+boss2 = Boss("Cubecicle", boss2_phase, random.uniform(100, WIDTH - 100), random.choice([1 , -1]), GREY)
+
+# Enemy setup 
+bosses = [boss1, boss2]
 bullet_list = [] # List bullet
 
 # Screen Shake Variables
@@ -608,7 +663,7 @@ while running:
     world_surface.fill(BLACK)
     
     for platform in Platforms:
-        pygame.draw.rect(world_surface, GREEN, platform.rect)
+        pygame.draw.rect(world_surface, BROWN, platform.rect)
     
     PlayerTest.draw(world_surface)
     for b in bosses:
