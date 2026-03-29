@@ -30,45 +30,71 @@ GREY = (128, 128, 128)
 YELLOW = (255, 255, 0)
 RED2_0 = (238, 75, 43)
 
+def get_end_pos(x, y, angle, length):
+    end_x = x + length * math.cos(angle)
+    end_y = y + length * math.sin(angle)
+    return (end_x, end_y)
+
+def load_image(image_path=None, rect=None,
+               flipx = 0, flipy = 0, 
+               size_offsetx = 0, size_offsety = 0):
+    if image_path:
+        image = pygame.image.load(image_path).convert_alpha()
+        image = pygame.transform.flip(image, flipx, flipy)
+    else:
+        image = None
+
+    if rect: 
+        image = pygame.transform.scale(image, (rect.width + size_offsetx, rect.height + size_offsety))
+
+    return image
+
+def get_image_rect(image_load=None, rect=None, pos_offsetx = 0, pos_offsety = 0, 
+                                              size_offsetx = 0, size_offsety = 0):
+    if rect: image_rect = rect.copy()
+    else: image_rect = image_load.get_rect()
+
+    image_rect.width += size_offsetx
+    image_rect.height += size_offsety
+
+    image_rect.centerx += (pos_offsetx - size_offsetx)
+    image_rect.centery += (pos_offsety - size_offsety)
+        
+    return image_rect
+
 class GameObject: #Circle Hitbox
-    def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10, image_path = None, 
-                                                    size_offsetx = 0, size_offsety = 0, #only if have image with bad offset
-                                                    pos_offsetx = 0, pos_offsety = 0):
+    def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10, 
+                                        image_load = None, image_rect = None, image_path = None,
+                                                            pos_offsetx = 0, pos_offsety = 0, 
+                                                            size_offsetx = 0, size_offsety = 0):
         self.hitbox_radius = hitbox_radius
         self.width = width
         self.height = height
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
-        self.image = image_path
+
         self.size_offsetx = size_offsetx
         self.size_offsety = size_offsety
         self.pos_offsetx = pos_offsetx
-        self.pos_offsety = pos_offsety
+        self.pos_offsety = pos_offsety 
+        
+        self.image = image_load
 
-        if image_path:
-            loaded_img = pygame.image.load(image_path).convert_alpha()
-            self.image = pygame.transform.scale(loaded_img, (self.width + size_offsetx, 
-                                                             self.height + size_offsety))
+        if image_path: self.image = load_image(image_path, self.rect, size_offsetx=size_offsetx, 
+                                                                        size_offsety=size_offsety)
+        if self.image: self.image_rect = get_image_rect(self.image, self.rect, self.pos_offsetx, self.pos_offsety,
+                                                                self.size_offsetx, self.size_offsety)    
+        if image_rect: self.image_rect = image_rect
+        
+    def draw_self(self, surface, image_load = None, image_rect = None):
+        if image_load: img = image_load
+        else: img = self.image
 
-    def draw_self(self, surface, image = None, size_offsetx=0, size_offsety=0, # if needed
-                                                pos_offsetx=0, pos_offsety=0):
-        if not (size_offsetx or size_offsety or pos_offsetx or pos_offsety): #if not from parameter, take from self 
-            size_offsetx, size_offsety, pos_offsetx, pos_offsety =  self.size_offsetx, self.size_offsety, self.pos_offsetx, self.pos_offsety
-
-        if image: # if from parameter
-            loaded_img = pygame.image.load(image).convert_alpha()
-            self.image = pygame.transform.scale(loaded_img, (self.width + size_offsetx, 
-                                                             self.height + size_offsety))
-
-        if self.image:
-            offsetx = pos_offsetx - size_offsetx
-            offsety = pos_offsety - size_offsety
-            self.image_rect = self.rect.copy()
-            self.image_rect.left += offsetx
-            self.image_rect.top += offsety
-            surface.blit(self.image, self.image_rect)
-        else:
-            pygame.draw.rect(surface, WHITE, self.rect, 2)
+        if image_rect: img_rect = image_rect
+        else: img_rect = get_image_rect(img, self.rect, self.pos_offsetx, self.pos_offsety,
+                                                        self.size_offsetx, self.size_offsety)
+        if img: surface.blit(img, img_rect)
+        else: pygame.draw.rect(surface, WHITE, self.rect, 2)
 
     def draw_Hitbox(self, surface, color = WHITE, hitbox_radius = None, border_width = 0): #draw hitbox circle
         hitbox_radius = self.hitbox_radius if hitbox_radius is None else hitbox_radius
@@ -99,16 +125,10 @@ class Particle:
             pygame.draw.rect(surface, self.color, (self.x, self.y, current_size, current_size))
 
 
-MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, image_path="assets/mainplatform.png", 
-                                                                        size_offsetx=200, 
-                                                                        size_offsety=1200, 
-                                                                        pos_offsetx=100, 
-                                                                        pos_offsety=500)
-
-def get_image(image_path=None, rect=None, size_offsetx = 0, size_offsety = 0):
-    image = pygame.image.load(image_path).convert_alpha()
-    image = pygame.transform.scale(image, (rect.width + size_offsetx, rect.height + size_offsety))
-    return image
+MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="assets/mainplatform.png",
+                                                        size_offsety=1200, 
+                                                        pos_offsetx=100, 
+                                                        pos_offsety=500)
 
 class Player(GameObject):
     def __init__(self, sizeHitbox=20, max_hp=5, name = "Player", ): #customize player, offset = character size
@@ -123,7 +143,7 @@ class Player(GameObject):
 
         self.max_hp = max_hp
         self.hp = self.max_hp
-        self.parry_count = 0 
+        self.absorb_count = 0 
 
         self.player_hit = False # hit grace setelah kena hit
         self.hit_time = 0
@@ -149,11 +169,11 @@ class Player(GameObject):
         self.action_cd_timer = 0 # action cooldown
         self.action_barMax = 1.3
 
-        self.is_parrying = False
-        self.parry_duration = 0.3  # Window parry
-        self.parry_cd = 1
-        self.parry_radius = 30
-        self.parry_color = GOLD
+        self.is_absorbing = False
+        self.absorb_duration = 0.3  # Window absorb
+        self.absorb_cd = 1
+        self.absorb_radius = 30
+        self.absorb_color = CYAN
 
         self.facing = 'right'
         self.facing_last = self.facing
@@ -173,6 +193,8 @@ class Player(GameObject):
         self.attack_finished = False
         self.know_facing = False
         self.img_rotate = 0
+        self.img_flipx = 0
+        self.img_flipy = 0
           
     def update(self, keys, dt, platforms):
         self.platform_group = platforms
@@ -185,22 +207,22 @@ class Player(GameObject):
         if self.action_cd_timer > 0:
             self.action_cd_timer -= dt
 
-        #Parry - action
+        #Absorb - action
         if keys[pygame.K_l] and not (self.player_hit or self.is_flying or self.is_attacking or
                                      self.action_cd_timer > 0):
-            self.is_parrying = True
-            self.parry_timer = self.parry_duration
-            self.action_cd_timer = self.parry_cd
+            self.is_absorbing = True
+            self.absorb_timer = self.absorb_duration
+            self.action_cd_timer = self.absorb_cd
             
 
-            # Cooldown parry
-        if self.is_parrying:
-            self.parry_timer -= dt
-            if self.parry_timer <= 0:
-                self.is_parrying = False
+            # Cooldown absorb
+        if self.is_absorbing:
+            self.absorb_timer -= dt
+            if self.absorb_timer <= 0:
+                self.is_absorbing = False
         
         #Attack - action
-        if keys[pygame.K_k] and not (self.is_flying or self.is_parrying or
+        if keys[pygame.K_k] and not (self.is_flying or self.is_absorbing or
                                      self.action_cd_timer > 0):
             self.is_attacking = True 
             
@@ -218,12 +240,15 @@ class Player(GameObject):
                 att_width = self.width * 2  
                 att_height = self.height * 2
             if self.facing == 'left' or self.facing == 'right':
-                att_width = self.height * 2 
+                att_width = self.height * 2
                 att_height = self.width * 2
+            if self.facing == 'diag-left-up' or self.facing == 'diag-right-up' or (
+               self.facing == 'diag-left-down' or self.facing == 'diag-right-down'):
+                att_width = self.width * 2
+                att_height = self.height * 2
             self.attack_rect = pygame.Rect(0, 0, att_width, att_height)
-
-
-            #Pos
+            
+            #Pos only once
         if self.is_attacking:
             if not self.know_pos:
                 self.last_pos_rect = self.rect.copy()
@@ -243,6 +268,21 @@ class Player(GameObject):
                     self.attack_rect.top = self.last_pos_rect.bottom + 40
                     self.attack_rect.centerx = self.last_pos_rect.centerx
 
+                if self.facing == 'diag-right-up':
+                    self.attack_rect.bottom = self.last_pos_rect.top - 30
+                    self.attack_rect.left = self.last_pos_rect.right + 60
+                if self.facing == 'diag-left-up':
+                    self.attack_rect.bottom = self.last_pos_rect.top - 30
+                    self.attack_rect.right = self.last_pos_rect.left - 60
+                
+                if self.facing == 'diag-right-down':
+                    self.attack_rect.top = self.last_pos_rect.bottom + 30
+                    self.attack_rect.left = self.last_pos_rect.right + 90
+                if self.facing == 'diag-left-down':
+                    self.attack_rect.top = self.last_pos_rect.bottom + 30
+                    self.attack_rect.right = self.last_pos_rect.left - 90
+                    None
+
                 self.attacked = True
 
         else: self.attack_rect = pygame.Rect(0,0,0,0)
@@ -253,8 +293,8 @@ class Player(GameObject):
             if self.attack_timer <= 0: 
                 self.is_attacking = False
 
-        #Movement - freeze when parrying
-        if not self.is_parrying:
+        #Movement - freeze when absorbing
+        if not self.is_absorbing:
             self.move(keys, dt) 
         if self.is_flying: self.hitbox_radius = 0
         else:              self.hitbox_radius = self.sizeHitbox
@@ -262,18 +302,18 @@ class Player(GameObject):
         # Action bar update - shows the action cooldown 
         # sedikit berbeda dari flying bar, hanya bisa action jika full bar
         if not self.facing_right:
-            self.action_bar_rectMax = pygame.Rect(0, 0, 10, self.rect.height * self.action_barMax)
-            self.action_bar_rectMax.centerx = self.rect.right + 10
+            self.action_bar_rectMax = pygame.Rect(0, 0, 10, self.rect.height / 2 * self.action_barMax)
+            self.action_bar_rectMax.centerx = self.rect.right + 20
             self.action_bar_rectMax.centery = self.rect.centery
             self.action_bar_rect = pygame.Rect(0, 0, self.action_bar_rectMax.width, 
                                             self.rect.height * (self.action_barMax - self.action_cd_timer))
         else:
-            self.action_bar_rectMax = pygame.Rect(0, 0, 10, self.rect.height * self.action_barMax)
-            self.action_bar_rectMax.centerx = self.rect.left - 10
+            self.action_bar_rectMax = pygame.Rect(0, 0, 10, self.rect.height / 2 * self.action_barMax)
+            self.action_bar_rectMax.centerx = self.rect.left - 20
             self.action_bar_rectMax.centery = self.rect.centery
             
         self.action_bar_rect = pygame.Rect(0, 0, self.action_bar_rectMax.width, 
-                                            self.rect.height * (self.action_barMax - self.action_cd_timer))
+                                        self.rect.height / 2 * (self.action_barMax - self.action_cd_timer))
         self.action_bar_rect.x = self.action_bar_rectMax.x
         self.action_bar_rect.bottom = self.action_bar_rectMax.bottom
 
@@ -287,20 +327,15 @@ class Player(GameObject):
                 
     def draw(self, surface):
         
-        #Facing indicator
+        #Character
         if not self.facing_right:
-            self.draw_self(surface, image="assets/cirno-left.png")
+            img = load_image(image_path="assets/cirno.png", flipx=1, rect=self.rect, size_offsetx=self.size_offsetx, 
+                                                                                     size_offsety=self.size_offsety)
+            img_rect = get_image_rect(img, self.rect, self.pos_offsetx, self.pos_offsety, 
+                                                      self.size_offsetx, self.size_offsety)
+            self.draw_self(surface, img, img_rect)
         if self.facing_right:
-            self.draw_self(surface, image="assets/cirno.png")
-
-        if self.facing == 'left':
-            pygame.draw.rect(surface, WHITE, (self.rect.left - 30, self.rect.centery - 10, 10, 10))
-        if self.facing == 'right': 
-            pygame.draw.rect(surface, WHITE, (self.rect.right + 20, self.rect.centery - 10, 10, 10))
-        if self.facing == 'up':
-            pygame.draw.rect(surface, WHITE, (self.rect.centerx - 5, self.rect.top - 30,  10, 10))
-        if self.facing == 'down':
-            pygame.draw.rect(surface, WHITE, (self.rect.centerx - 5, self.rect.bottom + 20,  10, 10))
+            self.draw_self(surface)
 
         #Hitbox and rect for checking
         # if self.player_hit: player_color = RED2_0     
@@ -313,36 +348,41 @@ class Player(GameObject):
         #     pygame.draw.circle(surface, WHITE, self.rect.center, self.hitbox_radius, 2)
         #     self.draw_Hitbox(surface, player_color)
 
-        if self.is_parrying:
-            pygame.draw.circle(surface, self.parry_color, self.rect.center, self.hitbox_radius + self.parry_radius, 3)
+        if self.is_absorbing:
+            pygame.draw.circle(surface, self.absorb_color, self.rect.center, self.hitbox_radius + self.absorb_radius, 5)
 
-        if self.is_attacking:
-            pygame.draw.rect(surface, RED2_0, self.attack_rect, 2)
+        # if self.is_attacking:
+        #     pygame.draw.rect(surface, RED2_0, self.attack_rect, 2)
 
         if self.is_attacking and not self.attack_finished: # loop hanya dijalankan per animasi
             if not self.know_facing: #find rotation and facing
-                self.img_rotate = 0            
-                if self.facing == 'right':
-                    self.img_rotate = 0
-                if self.facing == 'up':
-                    self.img_rotate = 90   
-                if self.facing == 'left':
-                    self.img_rotate = 180
-                if self.facing == 'down':
-                    self.img_rotate = 270
+                self.img_rotate = 0
+                self.img_flipx = 0
+                self.img_flipy = 0          
+                if self.facing == 'right': None
+                if self.facing == 'diag-right-up': self.img_rotate = 45
+                if self.facing == 'up': self.img_rotate = 90
+                if self.facing == 'diag-right-down': self.img_rotate = -45
+                
+                if self.facing == 'left': self.img_flipx = 1
+                if self.facing == 'diag-left-up': self.img_flipx = 1 ; self.img_rotate = -45
+                if self.facing == 'down': self.img_flipx = 1 ; self.img_rotate = 90   
+                if self.facing == 'diag-left-down': self.img_flipx = 1 ; self.img_rotate = 45
+                
+                
                 self.facing_last =  self.facing
                 self.know_facing = True
 
             image_list = []
             for i in range(7):
-                image_list.append(get_image(f"assets/slash-{i}.gif", self.attack_rect, 
+                image_list.append(load_image(f"assets/slash-{i}.gif", rect=self.attack_rect, 
                                                 size_offsetx=100 if (self.facing_last == 'left' or self.facing_last == 'right')
                                                         else 200,
                                                 size_offsety=240 if (self.facing_last == 'left' or self.facing_last == 'right')
-                                                        else 50))
+                                                        else 50,
+                                                flipx=self.img_flipx, flipy=self.img_flipy))
 
-
-            frame_delay = 0
+            frame_delay = 10
             # Check if it's time to show the NEXT frame
             if pygame.time.get_ticks() - self.attack_frame_timer > frame_delay:
                 self.attack_frame_timer = pygame.time.get_ticks()
@@ -360,10 +400,6 @@ class Player(GameObject):
                 self.attack_cur_frame = 0
                 self.attack_finished = True
             
-            
-                
-            
-
         if self.action_cd_timer > 0:
             pygame.draw.rect(surface, GREY, self.action_bar_rectMax) # BG
             pygame.draw.rect(surface, YELLOW, self.action_bar_rect)
@@ -373,6 +409,35 @@ class Player(GameObject):
             pygame.draw.rect(surface, GREY, self.fly_bar_rectMax) # BG
             pygame.draw.rect(surface, BLUE, self.fly_bar_rect)
             pygame.draw.rect(surface, WHITE, self.fly_bar_rectMax, 2)
+
+        #Facing indicator
+        line_length = 20
+        line_width = 7
+        if self.facing == 'left':
+            pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.centery),
+                                             (self.rect.left - line_length - 20, self.rect.centery), line_width)
+        if self.facing == 'right':
+            pygame.draw.line(surface, WHITE, (self.rect.right + 20, self.rect.centery),
+                                             (self.rect.right + line_length + 20, self.rect.centery), line_width)
+        if self.facing == 'up':
+            pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.top - 20),
+                                             (self.rect.centerx, self.rect.top - line_length - 20), line_width)
+        if self.facing == 'down':
+            pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.bottom + 20),
+                                             (self.rect.centerx, self.rect.bottom + line_length + 20), line_width)
+
+        if self.facing == 'diag-left-up':
+            pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.top - 20),
+                                            get_end_pos(self.rect.left - 20, self.rect.top - 20, 45, line_length), line_width)
+        if self.facing == 'diag-right-up':
+            pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.top - 10),
+                                            get_end_pos(self.rect.right + 10, self.rect.top - 10, -45, line_length), line_width)
+        if self.facing == 'diag-left-down':
+            pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.bottom + 20),
+                                            get_end_pos(self.rect.left - 20, self.rect.bottom + 20, -45, line_length), line_width)
+        if self.facing == 'diag-right-down':
+            pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.bottom + 10),
+                                            get_end_pos(self.rect.right + 10, self.rect.bottom + 10, 45, line_length), line_width)
 
     def on_platform(self):
         for platform in self.platform_group:
@@ -386,7 +451,7 @@ class Player(GameObject):
     
     def move(self, keys, dt):
         if not self.is_attacking:
-            if pygame.time.get_ticks() - self.land_delay_timer >= 800: # delay
+            if pygame.time.get_ticks() - self.land_delay_timer >= 200: # delay
                 self.land_delayed = False
                 self.facing = 'right' if self.facing_right else 'left'
 
@@ -399,6 +464,18 @@ class Player(GameObject):
                 self.facing = 'up'
             if keys[pygame.K_s] and not keys[pygame.K_w]: 
                 self.facing = 'down'
+
+            if keys[pygame.K_w]: 
+                if keys[pygame.K_d]:
+                    self.facing = 'diag-right-up'
+                if keys[pygame.K_a]:
+                    self.facing = 'diag-left-up'
+
+            if keys[pygame.K_s]:
+                if keys[pygame.K_d]:
+                    self.facing = 'diag-right-down'
+                if keys[pygame.K_a]:
+                    self.facing = 'diag-left-down'
 
         if (keys[pygame.K_w] or keys[pygame.K_s]) and not self.is_flying: # set delay timer after jump or quick fall
             self.land_delay_timer = pygame.time.get_ticks()
@@ -666,9 +743,9 @@ def draw_ui(surface, player, boss_list):
     pygame.draw.rect(surface, GREEN, (20, HEIGHT - font_size - 40, player.hp * 40, 20))
     pygame.draw.rect(surface, WHITE, (20, HEIGHT - font_size - 40, player.max_hp * 40, 20), 2)
     
-    # Parry/Heal tracking
-    parry_txt = UI_FONT.render(f"Parry Stack: {player.parry_count}/5", True, GOLD)
-    surface.blit(parry_txt, (20, HEIGHT - font_size - 10))
+    # Absorb/Heal tracking
+    absorb_txt = UI_FONT.render(f"Baka Stack: {player.absorb_count}/5", True, GOLD)
+    surface.blit(absorb_txt, (20, HEIGHT - font_size - 10))
     
     # Boss UI
     boss_counter = 0
@@ -793,7 +870,6 @@ while running:
                 b.hit_time = pygame.time.get_ticks()
                 b.is_hit = True
         
-    
     for p in particles[:]:
         p.update(dt)
         if p.lifetime <= 0:
@@ -807,16 +883,16 @@ while running:
             continue
         
         #Check i-frame & kolisi
-        current_radius = PlayerTest.hitbox_radius + (PlayerTest.parry_radius if PlayerTest.is_parrying else 0) 
+        current_radius = PlayerTest.hitbox_radius + (PlayerTest.absorb_radius if PlayerTest.is_absorbing else 0) 
         if circle_collide(PlayerTest.rect.center, current_radius, projectile.rect.center, projectile.hitbox_radius):
-            if PlayerTest.is_parrying and not PlayerTest.is_flying: # Parry
+            if PlayerTest.is_absorbing and not PlayerTest.is_flying: # Absorb
                 bullet_list.remove(projectile)
-                PlayerTest.action_cd_timer = max(0 , PlayerTest.action_cd_timer - PlayerTest.parry_cd/3) # Lower cd if parried
-                spawn_particles(projectile.rect.centerx, projectile.rect.centery, GOLD, 6) # Parry Sparks
-                PlayerTest.parry_count += 1
-                if PlayerTest.parry_count >= 5:
+                PlayerTest.action_cd_timer = max(0 , PlayerTest.action_cd_timer - PlayerTest.absorb_cd/3) # Lower cd if parried
+                spawn_particles(projectile.rect.centerx, projectile.rect.centery, GOLD, 6) # Absorb Sparks
+                PlayerTest.absorb_count += 1
+                if PlayerTest.absorb_count >= 5:
                     PlayerTest.hp = min(PlayerTest.hp + 1, PlayerTest.max_hp)
-                    PlayerTest.parry_count = 0
+                    PlayerTest.absorb_count = 0
                     spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, GREEN, 15) # Heal Sparks
                 continue
             

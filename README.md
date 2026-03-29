@@ -14,7 +14,7 @@ D = Right
 S = Quick-fall or down
 
 K = Attack
-L = Parry
+L = Absorb
 LSHIFT = Phase
 
 Objective - Kill bosses, or smthng idk
@@ -25,7 +25,8 @@ Mechanic:
  - Attack: Meele ranged attack based on your direction (WASD), 
            successful attack will decrease action cooldown
  - Phasing : will phase through bullets, only last 2 sec max. Will recharge
- - Parry/Deflect: will destroy bullet in vicinity, successful parry will decrease action cooldown
+ - Absorb: will absorb bullets in vicinity, successfully absorbing bullet will decrease action cooldown
+                                            and grant 1 stack of Baka, 5 Baka stacks heals 1 HP
 
 Customization: 
     Arena; 
