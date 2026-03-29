@@ -578,7 +578,8 @@ class Boss(GameObject):
         self.current_phase = 1
         # data phase 1
         start_y = self.phases[self.current_phase]['y-axis']
-        super().__init__(x=start_x, y=start_y, width=60, height=60, hitbox_radius=30)
+        super().__init__(x=start_x, y=start_y, width=60, height=60, hitbox_radius=30, image_path="assets/enemy.png",
+                        size_offsetx=125, size_offsety=125, pos_offsetx=62.5, pos_offsety=65)
         self.name = name
         self.circle_color = circle_color
         self.max_hp = self.phases[self.current_phase]['max_hp']
@@ -838,7 +839,7 @@ bosses = [boss1, boss2] #boss1, boss2
 bullet_list = [] # List bullet
 
 # Player 
-PlayerTest = Player(max_hp=5, name="Heli")
+PlayerTest = Player(max_hp=15, name="Heli")
 
 # Screen Shake Variables
 shake_timer = 0
@@ -921,10 +922,11 @@ while running:
         platform.draw_self(world_surface)
     
     PlayerTest.draw(world_surface)
-    for b in bosses:
-        b.draw(world_surface)
-        
     
+    for b in bosses:
+        #b.draw(world_surface) #hitbox
+        b.draw_self(world_surface)
+        
     for projectile in bullet_list:
         projectile.draw_Hitbox(world_surface, projectile.color)
     
