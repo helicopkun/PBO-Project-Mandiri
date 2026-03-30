@@ -15,6 +15,7 @@ pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name
 # Danmaku ~ bullet hell in japanese
 font_size = 40
 UI_FONT = pygame.font.Font("assets/Cirno.ttf", font_size)
+UI_FONT.set_bold(True)
 
 CYAN = (0, 255, 255)
 BLUE = (0, 0, 255)
@@ -29,112 +30,73 @@ BROWN = (150, 75, 0)
 GREY = (128, 128, 128)
 YELLOW = (255, 255, 0)
 RED2_0 = (238, 75, 43)
+CYAN2_0 = (192, 253, 253)
 
-def get_end_pos(x, y, angle, length):
+def get_end_pos(x, y, angle, length): # for line
     end_x = x + length * math.cos(angle)
     end_y = y + length * math.sin(angle)
     return (end_x, end_y)
 
-def load_image(image_path=None, rect=None,
-               flipx = 0, flipy = 0, 
+def load_image(image_path, rect, # load image on rect
+               flipx = 0, flipy = 0, angle = 0,
                size_offsetx = 0, size_offsety = 0):
-    if image_path:
-        image = pygame.image.load(image_path).convert_alpha()
-        image = pygame.transform.flip(image, flipx, flipy)
-    else:
-        image = None
-
-    if rect: 
-        image = pygame.transform.scale(image, (rect.width + size_offsetx, rect.height + size_offsety))
-
+    image = pygame.image.load(image_path).convert_alpha()
+    image = pygame.transform.flip(image, flipx, flipy)
+    image = pygame.transform.scale(image, (rect.width + size_offsetx, rect.height + size_offsety))
+    image = pygame.transform.rotate(image, angle)
+    
+    
     return image
 
-def get_image_rect(image_load=None, rect=None, pos_offsetx = 0, pos_offsety = 0, 
-                                              size_offsetx = 0, size_offsety = 0):
-    if rect: image_rect = rect.copy()
-    else: image_rect = image_load.get_rect()
+def gradientRect(window, left_colour, middle_colour, right_colour, target_rect):
+    """Draws a horizontal-gradient filled rectangle."""
+    # Create a tiny 2x2 surface
+    colour_rect = pygame.Surface((3, 2))
+    # Fill one pixel with the left color, the other with the right
+    pygame.draw.line(colour_rect, left_colour, (0, 0), (0, 1))
+    pygame.draw.line(colour_rect, middle_colour, (1, 0), (1, 1))
+    pygame.draw.line(colour_rect, right_colour, (2, 0), (2, 1))
+    # Stretch the surface to the target rectangle size
+    colour_rect = pygame.transform.smoothscale(colour_rect, (target_rect.width, target_rect.height))
+    # Blit the gradient surface to the window
+    return colour_rect
 
-    image_rect.width += size_offsetx
-    image_rect.height += size_offsety
-
-    image_rect.centerx += (pos_offsetx - size_offsetx)
-    image_rect.centery += (pos_offsety - size_offsety)
-        
-    return image_rect
-
-class GameObject: #Circle Hitbox
+class GameObject: #Combination of Circle and Rect hitbox, based on usage
     def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10, 
-                                        image_load = None, image_rect = None, image_path = None,
-                                                            pos_offsetx = 0, pos_offsety = 0, 
+                                                            image_path = None,
+                                                            flipx = 0, flipy = 0, angle = 0, 
                                                             size_offsetx = 0, size_offsety = 0):
         self.hitbox_radius = hitbox_radius
         self.width = width
         self.height = height
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
-
-        self.size_offsetx = size_offsetx
-        self.size_offsety = size_offsety
-        self.pos_offsetx = pos_offsetx
-        self.pos_offsety = pos_offsety 
         
-        self.image = image_load
-
-        if image_path: self.image = load_image(image_path, self.rect, size_offsetx=size_offsetx, 
-                                                                        size_offsety=size_offsety)
-        if self.image: self.image_rect = get_image_rect(self.image, self.rect, self.pos_offsetx, self.pos_offsety,
-                                                                self.size_offsetx, self.size_offsety)    
-        if image_rect: self.image_rect = image_rect
+        self.image = None
+        #use local variable for load for one time use
+        if image_path: self.image = load_image(image_path, self.rect, flipx, flipy, angle, size_offsetx, size_offsety)
         
-    def draw_self(self, surface, image_load = None, image_rect = None):
-        if image_load: img = image_load
-        else: img = self.image
+    def draw_self(self, surface, new_image_load = None): # if self image need to change
+        if new_image_load: self.image = new_image_load   
 
-        if image_rect: img_rect = image_rect
-        else: img_rect = get_image_rect(img, self.rect, self.pos_offsetx, self.pos_offsety,
-                                                        self.size_offsetx, self.size_offsety)
-        if img: surface.blit(img, img_rect)
+        image_rect = self.image.get_rect(center=self.rect.center)
+            
+        if self.image: 
+            surface.blit(self.image, image_rect) 
+            if show_hitbox: pygame.draw.rect(surface, WHITE, image_rect, 2)
         else: pygame.draw.rect(surface, WHITE, self.rect, 2)
 
     def draw_Hitbox(self, surface, color = WHITE, hitbox_radius = None, border_width = 0): #draw hitbox circle
         hitbox_radius = self.hitbox_radius if hitbox_radius is None else hitbox_radius
         pygame.draw.circle(surface, color, self.rect.center, hitbox_radius, border_width) 
 
-class Particle:
-    def __init__(self, x, y, color=GOLD, is_burst=False):
-        self.x = x
-        self.y = y
-        self.color = color
-        self.size = random.uniform(4, 8)
-        self.lifetime = random.uniform(0.2, 0.5)
-        self.max_lifetime = self.lifetime
-        
-        angle = random.uniform(0, math.pi * 2)
-        speed = random.uniform(150, 400) if is_burst else random.uniform(50, 150) # make them shoot out faster
-        self.vx = math.cos(angle) * speed
-        self.vy = math.sin(angle) * speed
-
-    def update(self, dt):
-        self.x += self.vx * dt
-        self.y += self.vy * dt
-        self.lifetime -= dt
-
-    def draw(self, surface):
-        if self.lifetime > 0:
-            current_size = max(0.1, self.size * (self.lifetime / self.max_lifetime)) # Slowly shrink
-            pygame.draw.rect(surface, self.color, (self.x, self.y, current_size, current_size))
-
-
 MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="assets/mainplatform.png",
-                                                        size_offsety=1200, 
-                                                        pos_offsetx=100, 
-                                                        pos_offsety=500)
+                                                             size_offsety=1200)
 
 class Player(GameObject):
-    def __init__(self, sizeHitbox=20, max_hp=5, name = "Player", ): #customize player, offset = character size
+    def __init__(self, sizeHitbox=20, max_hp=5, name = "Baka", ): #customize player, offset = character size
         super().__init__(x= 15, y=MainPlatform.rect.top, width=50, height=100, hitbox_radius=sizeHitbox,
-                         image_path="assets\cirno.png", size_offsetx=70, size_offsety=30,
-                                                        pos_offsetx=35, pos_offsety=19)
+                         image_path="assets/cirno.png", size_offsetx=70, size_offsety=30)
         self.name = name
         self.sizeHitbox = sizeHitbox
         self.speedX = 400
@@ -149,12 +111,12 @@ class Player(GameObject):
         self.hit_time = 0
         self.hit_grace = 2200
 
-        self.is_flying = False
-        self.fly_barMax = 2 #sekon
-        self.fly_barRate = 0.5 #bar recharge per second
-        self.fly_barCD = 0.6 #cooldown before recharge
-        self.fly_barCD_time = 0
-        self.fly_bar = 0 # current bar
+        self.is_phasing = False
+        self.phase_barMax = 2 #sekon
+        self.phase_barRate = 0.5 #bar recharge per second
+        self.phase_barCD = 0.6 #cooldown before recharge
+        self.phase_barCD_time = 0
+        self.phase_bar = 0 # current bar
 
         self.is_jumping = False 
         self.jump_delay = 0                          
@@ -188,7 +150,7 @@ class Player(GameObject):
         self.know_pos = False
         self.attacked = False # one time direction attack
         
-        self.attack_frame_timer = 0 # for frame animation
+        self.attack_frame_timer = 0 # for attack frame animation
         self.attack_cur_frame = 0
         self.attack_finished = False
         self.know_facing = False
@@ -208,7 +170,7 @@ class Player(GameObject):
             self.action_cd_timer -= dt
 
         #Absorb - action
-        if keys[pygame.K_l] and not (self.player_hit or self.is_flying or self.is_attacking or
+        if keys[pygame.K_l] and not (self.player_hit or self.is_phasing or self.is_attacking or
                                      self.action_cd_timer > 0):
             self.is_absorbing = True
             self.absorb_timer = self.absorb_duration
@@ -222,7 +184,7 @@ class Player(GameObject):
                 self.is_absorbing = False
         
         #Attack - action
-        if keys[pygame.K_k] and not (self.is_flying or self.is_absorbing or
+        if keys[pygame.K_k] and not (self.is_phasing or self.is_absorbing or
                                      self.action_cd_timer > 0):
             self.is_attacking = True 
             
@@ -296,11 +258,11 @@ class Player(GameObject):
         #Movement - freeze when absorbing
         if not self.is_absorbing:
             self.move(keys, dt) 
-        if self.is_flying: self.hitbox_radius = 0
+        if self.is_phasing: self.hitbox_radius = 0
         else:              self.hitbox_radius = self.sizeHitbox
 
         # Action bar update - shows the action cooldown 
-        # sedikit berbeda dari flying bar, hanya bisa action jika full bar
+        # sedikit berbeda dari phaseing bar, hanya bisa action jika full bar
         if not self.facing_right:
             self.action_bar_rectMax = pygame.Rect(0, 0, 10, self.rect.height / 2 * self.action_barMax)
             self.action_bar_rectMax.centerx = self.rect.right + 20
@@ -318,29 +280,26 @@ class Player(GameObject):
         self.action_bar_rect.bottom = self.action_bar_rectMax.bottom
 
         # Flying bar update
-        self.fly_bar_rectMax = pygame.Rect(0, 0, self.rect.width * self.fly_barMax, 10)
-        self.fly_bar_rectMax.centerx = self.rect.centerx
-        self.fly_bar_rectMax.centery = self.rect.bottom + 10
-        self.fly_bar_rect = pygame.Rect(self.fly_bar_rectMax.left, self.fly_bar_rectMax.top,
-                                        self.rect.width * self.fly_bar, 
-                                        self.fly_bar_rectMax.height)
+        self.phase_bar_rectMax = pygame.Rect(0, 0, self.rect.width * self.phase_barMax, 10)
+        self.phase_bar_rectMax.centerx = self.rect.centerx
+        self.phase_bar_rectMax.centery = self.rect.bottom + 10
+        self.phase_bar_rect = pygame.Rect(self.phase_bar_rectMax.left, self.phase_bar_rectMax.top,
+                                        self.rect.width * self.phase_bar, 
+                                        self.phase_bar_rectMax.height)
                 
     def draw(self, surface):
         
         #Character
-        if not self.facing_right:
-            img = load_image(image_path="assets/cirno.png", flipx=1, rect=self.rect, size_offsetx=self.size_offsetx, 
-                                                                                     size_offsety=self.size_offsety)
-            img_rect = get_image_rect(img, self.rect, self.pos_offsetx, self.pos_offsety, 
-                                                      self.size_offsetx, self.size_offsety)
-            self.draw_self(surface, img, img_rect)
-        if self.facing_right:
-            self.draw_self(surface)
-
+        img = load_image(image_path="assets/cirno.png", flipx=0 if self.facing_right else 1, rect=self.rect, 
+                                                                                            size_offsetx=70, 
+                                                                                            size_offsety=30)
+        if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
+            self.draw_self(surface, img)
+        
         #Hitbox and rect for checking
         # if self.player_hit: player_color = RED2_0     
         # else: player_color = CYAN
-        # if self.is_flying: player_color = BLUE
+        # if self.is_phasing: player_color = BLUE
 
         # pygame.draw.rect(surface, player_color, self.rect, 2) 
         # if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): # Efek kedip saat kena hit
@@ -405,10 +364,10 @@ class Player(GameObject):
             pygame.draw.rect(surface, YELLOW, self.action_bar_rect)
             pygame.draw.rect(surface, WHITE, self.action_bar_rectMax, 2)
 
-        if self.fly_bar < self.fly_barMax:
-            pygame.draw.rect(surface, GREY, self.fly_bar_rectMax) # BG
-            pygame.draw.rect(surface, BLUE, self.fly_bar_rect)
-            pygame.draw.rect(surface, WHITE, self.fly_bar_rectMax, 2)
+        if self.phase_bar < self.phase_barMax:
+            pygame.draw.rect(surface, GREY, self.phase_bar_rectMax) # BG
+            pygame.draw.rect(surface, BLUE, self.phase_bar_rect)
+            pygame.draw.rect(surface, WHITE, self.phase_bar_rectMax, 2)
 
         #Facing indicator
         line_length = 20
@@ -441,7 +400,7 @@ class Player(GameObject):
 
     def on_platform(self):
         for platform in self.platform_group:
-            if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right:
+            if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right: # ketika ujung player memasuki area platform
                 if (self.rect.bottom >= platform.rect.top and # ketika player tepat berada di platform / overlap dalam platform
                     self.rect.bottom <= platform.rect.top + platform.height / 2 # toleransi overlap, semakin kecil semakin ketat
                 ):
@@ -450,6 +409,7 @@ class Player(GameObject):
         return False
     
     def move(self, keys, dt):
+        #Facing
         if not self.is_attacking:
             if pygame.time.get_ticks() - self.land_delay_timer >= 200: # delay
                 self.land_delayed = False
@@ -477,33 +437,30 @@ class Player(GameObject):
                 if keys[pygame.K_a]:
                     self.facing = 'diag-left-down'
 
-        if (keys[pygame.K_w] or keys[pygame.K_s]) and not self.is_flying: # set delay timer after jump or quick fall
+        if keys[pygame.K_w] and not self.is_phasing: # set delay timer after jump or quick fall
             self.land_delay_timer = pygame.time.get_ticks()
             self.land_delayed = True
             
-        # if not (keys[pygame.K_w] or keys[pygame.K_s]):
-        #     if self.facing_right: self.facing = 'right'
-        #     else: self.facing = 'left'
         #Flying movement
         if keys[pygame.K_LSHIFT] and self.action_cd_timer <= 0:
-            if self.fly_bar > 0:
-                self.fly_bar -= dt
+            if self.phase_bar > 0:
+                self.phase_bar -= dt
                 self.hitbox_radius = 0
-                self.is_flying = True 
+                self.is_phasing = True 
             else:
                 self.hitbox_radius = self.sizeHitbox
-                self.is_flying = False
-            self.fly_barCD_time = pygame.time.get_ticks() / 1000  # set CD after flying
+                self.is_phasing = False
+            self.phase_barCD_time = pygame.time.get_ticks() / 1000  # set CD after phaseing
 
         else:
             curCD_time = pygame.time.get_ticks() / 1000
-            if curCD_time - self.fly_barCD_time >= self.fly_barCD: # Recharge after CD
-                self.fly_bar = min(self.fly_barMax, self.fly_bar + self.fly_barRate * dt)
+            if curCD_time - self.phase_barCD_time >= self.phase_barCD: # Recharge after CD
+                self.phase_bar = min(self.phase_barMax, self.phase_bar + self.phase_barRate * dt)
             
             self.hitbox_radius = self.sizeHitbox
-            self.is_flying = False
+            self.is_phasing = False
 
-        if self.is_flying:
+        if self.is_phasing:
             dx = 0
             dy = 0
             if keys[pygame.K_a]: dx = -1
@@ -578,8 +535,8 @@ class Boss(GameObject):
         self.current_phase = 1
         # data phase 1
         start_y = self.phases[self.current_phase]['y-axis']
-        super().__init__(x=start_x, y=start_y, width=60, height=60, hitbox_radius=30, image_path="assets/enemy.png",
-                        size_offsetx=125, size_offsety=125, pos_offsetx=62.5, pos_offsety=65)
+        super().__init__(x=start_x, y=start_y, width=60, height=60, hitbox_radius=30, image_path="assets/enemy.png", #default
+                                                                                    size_offsetx=125, size_offsety=125)
         self.name = name
         self.circle_color = circle_color
         self.max_hp = self.phases[self.current_phase]['max_hp']
@@ -650,7 +607,8 @@ class Boss(GameObject):
                 a = start_angle + (spread * i)
                 bx = math.cos(a) * spd
                 by = math.sin(a) * spd
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image_path="assets/bullet-orb.png", 
+                                                                        size_offsetx=60, size_offsety=32.5))
                 
         if pattern == 'circle':
             step = (math.pi * 2) / num_bullets
@@ -658,7 +616,10 @@ class Boss(GameObject):
                 a = step * i
                 bx = math.cos(a) * spd
                 by = math.sin(a) * spd
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color))
+                angle = -math.degrees(a)
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color,  image_path="assets/bullet-1.png",
+                                                                        angle=angle,
+                                                                        size_offsetx=80, size_offsety=80))
                 
         if pattern == 'chaos': # Random from inside boss
             for i in range(num_bullets):
@@ -702,16 +663,20 @@ class Boss(GameObject):
             self.max_hp = self.phases[self.current_phase]['max_hp']
             self.hp = self.max_hp
             
-    def draw(self, surface):
+    def draw(self, surface): #hitbox
         if not self.alive: return
         color = self.phases[self.current_phase]['color']
-        self.draw_Hitbox(surface, self.circle_color, 10)
-        pygame.draw.rect(surface, color, self.rect, 10)
+        self.draw_Hitbox(surface, self.circle_color, 6)
+        self.draw_Hitbox(surface, color, 10, 3)
+        self.draw_self(world_surface)
+        #pygame.draw.rect(surface, color, self.rect, 10)
 
-#Projectile class where it will keep going until out of bounds
 class Bullet(GameObject):
-    def __init__(self, x, y, vx, vy, hitbox_radius = 8, color=CYAN):
-        super().__init__(x, y, hitbox_radius=hitbox_radius)
+    def __init__(self, x, y, vx, vy, hitbox_radius , color=CYAN, image_path="assets/bullet-orb.png", #default
+                                                                 flipx = 0, flipy = 0, angle = 0, 
+                                                                 size_offsetx=60, size_offsety=32.5):
+        w = h = 2*hitbox_radius
+        super().__init__(x, y, w, h, hitbox_radius, image_path, flipx, flipy, angle, size_offsetx, size_offsety)
         self.vx = vx
         self.vy = vy
         self.color = color
@@ -722,7 +687,7 @@ class Bullet(GameObject):
         
     def out_of_bounds(self):
         return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > MainPlatform.rect.top or self.rect.bottom < -50
-      
+
 
 def circle_collide(c1_pos, r1, c2_pos, r2):
     dx = c1_pos[0] - c2_pos[0] 
@@ -730,23 +695,22 @@ def circle_collide(c1_pos, r1, c2_pos, r2):
     
     return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
 
-particles = []
-def spawn_particles(x, y, color, count=5, is_burst=False):
-    for i in range(count):
-        particles.append(Particle(x, y, color, is_burst))
-
 def draw_ui(surface, player, boss_list):
     # Player UI
-    p_text = UI_FONT.render(player.name, True, WHITE)
-    surface.blit(p_text, (20, HEIGHT - font_size - 85))
+    p_text = UI_FONT.render(player.name.upper(), True, (192, 253, 253))
+    surface.blit(p_text, (20, HEIGHT - font_size - 10))
     # HP Bar
-    pygame.draw.rect(surface, RED2_0, (20, HEIGHT - font_size - 40, player.max_hp * 40, 20))
-    pygame.draw.rect(surface, GREEN, (20, HEIGHT - font_size - 40, player.hp * 40, 20))
-    pygame.draw.rect(surface, WHITE, (20, HEIGHT - font_size - 40, player.max_hp * 40, 20), 2)
+    player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
+    image = load_image("assets/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
+    pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
+    if player.player_hit: pygame.draw.rect(surface, RED, (136, HEIGHT - font_size - 40, player.hp * 28, 25)) #grace hp
+    pygame.draw.rect(surface, GREEN, (102, HEIGHT - font_size - 40, player.hp * 28, 25))
+
+    surface.blit(image, player_hp_bar_rect)
     
     # Absorb/Heal tracking
-    absorb_txt = UI_FONT.render(f"Baka Stack: {player.absorb_count}/5", True, GOLD)
-    surface.blit(absorb_txt, (20, HEIGHT - font_size - 10))
+    absorb_txt = UI_FONT.render(f"Baka Stack: {player.absorb_count}/5", True, CYAN, (250,250,250))
+    surface.blit(absorb_txt, (400, HEIGHT - font_size - 10))
     
     # Boss UI
     boss_counter = 0
@@ -769,20 +733,49 @@ def draw_ui(surface, player, boss_list):
             pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - font_size - 20 + offset * boss_counter,
                                                                  20, 20))
             boss_counter += 1
+
+
+
+class Particle:
+    def __init__(self, x, y, color=GOLD, is_burst=False):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.size = random.uniform(4, 8)
+        self.lifetime = random.uniform(0.2, 0.5)
+        self.max_lifetime = self.lifetime
         
+        angle = random.uniform(0, math.pi * 2)
+        speed = random.uniform(150, 400) if is_burst else random.uniform(50, 150) # make them shoot out faster
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+
+    def update(self, dt):
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.lifetime -= dt
+
+    def draw(self, surface):
+        if self.lifetime > 0:
+            current_size = max(0.1, self.size * (self.lifetime / self.max_lifetime)) # Slowly shrink
+            pygame.draw.rect(surface, self.color, (self.x, self.y, current_size, current_size))
+
+particles = []
+def spawn_particles(x, y, color, count=5, is_burst=False):
+    for i in range(count):
+        particles.append(Particle(x, y, color, is_burst))
+
 
 #Platform image offset
 plat_size_offsetx=65 
 plat_size_offsety=250
 plat_pos_offsetx=30
-plat_pos_offsety=125 
+plat_pos_offsety=125
 
 def add_plat(plat_list, x, y, w=250, image="assets/platform.png"):
     plat_list.append(GameObject(x , (HEIGHT - y - 150), w, 15, image_path=image,
                                 size_offsetx=plat_size_offsetx,
-                                size_offsety=plat_size_offsety,
-                                pos_offsetx=plat_pos_offsetx,
-                                pos_offsety=plat_pos_offsety))
+                                size_offsety=plat_size_offsety))
     
 # Platform making - stage level
 Platform_list = [MainPlatform]
@@ -798,10 +791,10 @@ Platforms2.append(GameObject(400, HEIGHT//2, 200, 10))
 Platforms2.append(GameObject(900, HEIGHT//2, 200, 15))
 
 
-# Enemy making color for phase color
+# Enemy making - color for phase color
 boss1_phase = { 
-            1: {'max_hp': 5, 'move_speed': 100, 'y-axis': 150, 'rate': 1.5, 'pattern': 'fan', 
-                'num_bullet': 4, 'bullet_spd': 300, 'bullet_size': 10,'color': ORANGE},
+            1: {'max_hp': 5, 'move_speed': 100, 'y-axis': 150, 'rate': 1.5, 'pattern': 'circle', 
+                'num_bullet': 5, 'bullet_spd': 300, 'bullet_size': 10,'color': ORANGE},
 
             2: {'max_hp': 8, 'move_speed': 200, 'y-axis': 250, 'rate': 2, 'pattern': 'random', 
                 'num_bullet': 5, 'bullet_spd': 350, 'bullet_size': 8,'color': PURPLE},
@@ -831,15 +824,16 @@ boss2_phase = {
             5: {'max_hp': 12, 'move_speed': 700, 'y-axis': 200, 'rate': 0.2, 'pattern': 'chaos', 
                 'num_bullet': 10, 'bullet_spd': 450, 'bullet_size': 10, 'color': GOLD}
         }
-boss1 = Boss("And more..", boss1_phase, random.uniform(100, WIDTH - 100), random.choice([1 , -1]), WHITE)
-boss2 = Boss("Cubecicle", boss2_phase, random.uniform(100, WIDTH - 100), random.choice([1 , -1]), GREY)
 
-# Enemy setup 
-bosses = [boss1, boss2] #boss1, boss2
+boss1 = Boss("Cubecicle", boss2_phase, random.uniform(100, WIDTH - 100), random.choice([1 , -1]), GREY)
+boss2 = Boss("And more..", boss1_phase, random.uniform(100, WIDTH - 100), random.choice([1 , -1]), WHITE)
+
+# Enemy setup {top boss = last in list}
+bosses = [boss2, boss1] #boss1, boss2
 bullet_list = [] # List bullet
 
 # Player 
-PlayerTest = Player(max_hp=15, name="Heli")
+PlayerTest = Player(max_hp=15, name="HelicopKun")
 
 # Screen Shake Variables
 shake_timer = 0
@@ -849,6 +843,7 @@ background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
 
 clock = pygame.time.Clock()
 running = True
+show_hitbox = False
 
 while running: 
     dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
@@ -886,7 +881,7 @@ while running:
         #Check i-frame & kolisi
         current_radius = PlayerTest.hitbox_radius + (PlayerTest.absorb_radius if PlayerTest.is_absorbing else 0) 
         if circle_collide(PlayerTest.rect.center, current_radius, projectile.rect.center, projectile.hitbox_radius):
-            if PlayerTest.is_absorbing and not PlayerTest.is_flying: # Absorb
+            if PlayerTest.is_absorbing and not PlayerTest.is_phasing: # Absorb
                 bullet_list.remove(projectile)
                 PlayerTest.action_cd_timer = max(0 , PlayerTest.action_cd_timer - PlayerTest.absorb_cd/3) # Lower cd if parried
                 spawn_particles(projectile.rect.centerx, projectile.rect.centery, GOLD, 6) # Absorb Sparks
@@ -897,7 +892,7 @@ while running:
                     spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, GREEN, 15) # Heal Sparks
                 continue
             
-            if not PlayerTest.is_flying and not PlayerTest.player_hit: # Got hit
+            if not PlayerTest.is_phasing and not PlayerTest.player_hit: # Got hit
                 bullet_list.remove(projectile)
                 PlayerTest.hp -= 1
                 PlayerTest.hit_time = pygame.time.get_ticks()
@@ -918,18 +913,22 @@ while running:
     # world_surface.fill("background.png")
     
     for platform in Platform_list:
-        #pygame.draw.rect(world_surface, BROWN, platform.rect) #hitbox
+        if show_hitbox:
+            pygame.draw.rect(world_surface, BROWN, platform.rect) #hitbox
         platform.draw_self(world_surface)
     
     PlayerTest.draw(world_surface)
     
-    for b in bosses:
-        #b.draw(world_surface) #hitbox
-        b.draw_self(world_surface)
-        
     for projectile in bullet_list:
-        projectile.draw_Hitbox(world_surface, projectile.color)
-    
+        if show_hitbox:
+            projectile.draw_Hitbox(world_surface, projectile.color)
+            pygame.draw.rect(world_surface, WHITE, projectile.rect, 2)
+
+        projectile.draw_self(world_surface)
+        
+    for b in bosses:
+        b.draw(world_surface) #hitbox
+        
     for p in particles:
         p.draw(world_surface)
 
