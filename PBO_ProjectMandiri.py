@@ -295,6 +295,7 @@ class Player(GameObject):
                                                                                             size_offsety=30)
         if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
             self.draw_self(surface, img)
+            if show_hitbox: self.draw_Hitbox(surface, hitbox_radius=self.hitbox_radius, border_width=2)
         
         #Hitbox and rect for checking
         # if self.player_hit: player_color = RED2_0     
@@ -341,7 +342,7 @@ class Player(GameObject):
                                                         else 50,
                                                 flipx=self.img_flipx, flipy=self.img_flipy))
 
-            frame_delay = 10
+            frame_delay = 5
             # Check if it's time to show the NEXT frame
             if pygame.time.get_ticks() - self.attack_frame_timer > frame_delay:
                 self.attack_frame_timer = pygame.time.get_ticks()
@@ -437,7 +438,7 @@ class Player(GameObject):
                 if keys[pygame.K_a]:
                     self.facing = 'diag-left-down'
 
-        if keys[pygame.K_w] and not self.is_phasing: # set delay timer after jump or quick fall
+        if keys[pygame.K_w]: # set delay timer after jump or quick fall
             self.land_delay_timer = pygame.time.get_ticks()
             self.land_delayed = True
             
@@ -607,8 +608,11 @@ class Boss(GameObject):
                 a = start_angle + (spread * i)
                 bx = math.cos(a) * spd
                 by = math.sin(a) * spd
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image_path="assets/bullet-orb.png", 
-                                                                        size_offsetx=60, size_offsety=32.5))
+                angle = -math.degrees(a)
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image_path="assets/bullet-2.png",
+                                                                        angle=angle,
+                                                                        size_offsetx=80, size_offsety=80))
+                                                                        #size_offsetx=60, size_offsety=32.5)
                 
         if pattern == 'circle':
             step = (math.pi * 2) / num_bullets
@@ -626,7 +630,8 @@ class Boss(GameObject):
                 a = random.uniform(0, math.pi * 2)
                 bx = math.cos(a) * spd
                 by = math.sin(a) * spd
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color))
+                angle = -math.degrees(a)
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image_path="assets/bullet-3.png", angle=angle))
 
         if pattern == 'random': # Random entire screen
             for i in range(num_bullets):
@@ -666,8 +671,8 @@ class Boss(GameObject):
     def draw(self, surface): #hitbox
         if not self.alive: return
         color = self.phases[self.current_phase]['color']
-        self.draw_Hitbox(surface, self.circle_color, 6)
-        self.draw_Hitbox(surface, color, 10, 3)
+        self.draw_Hitbox(surface, color, 6)
+        self.draw_Hitbox(surface, self.circle_color, 10, 3)
         self.draw_self(world_surface)
         #pygame.draw.rect(surface, color, self.rect, 10)
 
@@ -700,11 +705,15 @@ def draw_ui(surface, player, boss_list):
     p_text = UI_FONT.render(player.name.upper(), True, (192, 253, 253))
     surface.blit(p_text, (20, HEIGHT - font_size - 10))
     # HP Bar
+    hp_gap = 1/player.max_hp * 420
     player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
     image = load_image("assets/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
     pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
-    if player.player_hit: pygame.draw.rect(surface, RED, (136, HEIGHT - font_size - 40, player.hp * 28, 25)) #grace hp
-    pygame.draw.rect(surface, GREEN, (102, HEIGHT - font_size - 40, player.hp * 28, 25))
+    if player.player_hit: 
+        # pygame.draw.rect(surface, RED, (102 + hp_gap/2, HEIGHT - font_size - 40, player.hp/player.max_hp * 400, 25)) #grace hp = almost last hit
+        pygame.draw.rect(surface, RED, (102 + hp_gap, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25)) #grace hp
+
+    pygame.draw.rect(surface, GREEN, (102, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25))
 
     surface.blit(image, player_hp_bar_rect)
     
@@ -895,6 +904,7 @@ while running:
             if not PlayerTest.is_phasing and not PlayerTest.player_hit: # Got hit
                 bullet_list.remove(projectile)
                 PlayerTest.hp -= 1
+                print (PlayerTest.hp)
                 PlayerTest.hit_time = pygame.time.get_ticks()
                 PlayerTest.player_hit = True
                 shake_timer = 0.25 # Trigger Screen Shake
