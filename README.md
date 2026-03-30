@@ -13,8 +13,8 @@ A = Left
 D = Right
 S = Quick-fall or down
 
-K = Attack
-L = Absorb
+K or M1 = Attack
+L or M2 = Absorb
 LSHIFT = Phase
 
 Objective - Kill bosses, or smthng idk
@@ -22,7 +22,7 @@ Objective - Kill bosses, or smthng idk
 Mechanic:
  - Action cd: an internal cd for each action like phasing, attacking, and parrying.
               can only do action when there is no cooldown
- - Attack: Meele ranged attack based on your direction (WASD), 
+ - Attack: Long-Meele ranged attack based on your direction (WASD) or Mouse, 
            successful attack will decrease action cooldown
  - Phasing : will phase through bullets, only last 2 sec max. Will recharge
  - Absorb: will absorb bullets in vicinity, successfully absorbing bullet will decrease action cooldown
@@ -31,10 +31,12 @@ Mechanic:
 Customization: 
     Arena; 
     Boss(s); 
-    Boss.pattern.phase 
+    Boss.pattern.phase
 
-you can add as many bosses as you want
-or as many platform as you want
+you can -add 
+    as many bosses as you want (i maxed it to 2 boss per arena, anymore and ur cooked)
+    as many platform as you want
+    as many stages(WIP)
 in the same Game loop
 
 im finna get copyrighted bruh
