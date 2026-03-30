@@ -117,11 +117,12 @@ class Player(GameObject):
         self.hp = self.max_hp
         self.absorb_count = 0 
 
-        self.player_hit = False # hit grace setelah kena hit
+        self.is_hit = False # hit grace setelah kena hit
         self.hit_time = 0
         self.hit_grace = 2200
 
         self.is_phasing = False
+        self.phase_speed = 1.5
         self.phase_barMax = 2 #sekon
         self.phase_barRate = 0.5 #bar recharge per second
         self.phase_barCD = 0.6 #cooldown before recharge
@@ -172,15 +173,15 @@ class Player(GameObject):
         self.platform_group = platforms
         
         #Hit Grace      
-        if self.player_hit and pygame.time.get_ticks() - self.hit_time >= self.hit_grace:
-            self.player_hit = False
+        if self.is_hit and pygame.time.get_ticks() - self.hit_time >= self.hit_grace:
+            self.is_hit = False
         
         #Action CD, cannot do both action at same time, different CD based on last action
         if self.action_cd_timer > 0:
             self.action_cd_timer -= dt
 
         #Absorb - action
-        if (keys[pygame.K_l] or action == 3) and not (self.player_hit or self.is_phasing or self.is_attacking or
+        if (keys[pygame.K_l] or action == 3) and not (self.is_hit or self.is_phasing or self.is_attacking or
                                      self.action_cd_timer > 0):
             self.is_absorbing = True
             self.absorb_timer = self.absorb_duration
@@ -281,6 +282,33 @@ class Player(GameObject):
 
         #Movement - freeze when absorbing
         if not self.is_absorbing:
+                #Facing
+            if not self.is_attacking:
+                if pygame.time.get_ticks() - self.land_delay_timer >= 200: # delay
+                    self.land_delayed = False
+                    self.facing = 'right' if self.facing_right else 'left'
+
+                if keys[pygame.K_a] and not keys[pygame.K_d]:
+                    self.facing_right = False
+                if keys[pygame.K_d] and not keys[pygame.K_a]:
+                    self.facing_right = True
+                    
+                if keys[pygame.K_w] and not keys[pygame.K_s]: 
+                    self.facing = 'up'
+                if keys[pygame.K_s] and not keys[pygame.K_w]: 
+                    self.facing = 'down'
+
+                if keys[pygame.K_w]: 
+                    if keys[pygame.K_d]:
+                        self.facing = 'top-right'
+                    if keys[pygame.K_a]:
+                        self.facing = 'top-left'
+
+                if keys[pygame.K_s]:
+                    if keys[pygame.K_d]:
+                        self.facing = 'bottom-right'
+                    if keys[pygame.K_a]:
+                        self.facing = 'bottom-left'
             self.move(keys, dt) 
         #Check phasing for hitbox radius
         if self.is_phasing: self.hitbox_radius = 0
@@ -316,7 +344,7 @@ class Player(GameObject):
         img = get_image(image_path="assets/cirno.png", flipx=0 if self.facing_right else 1, rect=self.rect, 
                                                                                             size_offsetx=70, 
                                                                                             size_offsety=30)
-        if not (self.player_hit and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
+        if not (self.is_hit and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
             self.draw_self(surface, img)
 
         if self.is_absorbing:
@@ -420,34 +448,6 @@ class Player(GameObject):
         return False
     
     def move(self, keys, dt):
-        #Facing
-        if not self.is_attacking:
-            if pygame.time.get_ticks() - self.land_delay_timer >= 200: # delay
-                self.land_delayed = False
-                self.facing = 'right' if self.facing_right else 'left'
-
-            if keys[pygame.K_a] and not keys[pygame.K_d]:
-                self.facing_right = False
-            if keys[pygame.K_d] and not keys[pygame.K_a]:
-                self.facing_right = True
-                
-            if keys[pygame.K_w] and not keys[pygame.K_s]: 
-                self.facing = 'up'
-            if keys[pygame.K_s] and not keys[pygame.K_w]: 
-                self.facing = 'down'
-
-            if keys[pygame.K_w]: 
-                if keys[pygame.K_d]:
-                    self.facing = 'top-right'
-                if keys[pygame.K_a]:
-                    self.facing = 'top-left'
-
-            if keys[pygame.K_s]:
-                if keys[pygame.K_d]:
-                    self.facing = 'bottom-right'
-                if keys[pygame.K_a]:
-                    self.facing = 'bottom-left'
-
         if keys[pygame.K_w]: # set delay timer after jump or quick fall
             self.land_delay_timer = pygame.time.get_ticks()
             self.land_delayed = True
@@ -472,22 +472,22 @@ class Player(GameObject):
         if self.is_phasing:
             dx = 0
             dy = 0
-            if keys[pygame.K_a]: dx = -1
+            if keys[pygame.K_a]: dx = -1 
             if keys[pygame.K_d]: dx = 1
 
-            if keys[pygame.K_w]: dy = -1
-            if keys[pygame.K_s]: dy = 1
+            if keys[pygame.K_w]: dy = -1 
+            if keys[pygame.K_s]: dy = 1 
 
             if dx != 0 and dy != 0:
                 length = (dx**2 + dy**2) ** 0.5
                 dx /= length
                 dy /= length
         
-            self.rect.centerx += dx * self.speedX * dt
+            self.rect.centerx += dx * self.speedX * dt * self.phase_speed
             self.rect.left = max(0, self.rect.left)
             self.rect.right = min(WIDTH, self.rect.right)
             
-            self.rect.centery += dy * self.speedY * dt
+            self.rect.centery += dy * self.speedY * dt * self.phase_speed
             self.rect.top = max(0, self.rect.top)
             self.rect.bottom = min(MainPlatform.rect.top, self.rect.bottom)
             
@@ -595,7 +595,9 @@ class Boss(GameObject): #boss use rectangular hitbox
         self.fire_timer -= dt
         if self.fire_timer <= 0:
             self.fire_timer = phase['rate']
-            self.shoot(player, bullet_list, phase)
+            if pygame.time.get_ticks() - player.hit_time >= 1000: #delay after player get hit & first spawn
+                self.shoot(player, bullet_list, phase)
+
             
     def shoot(self, player, bullet_list, phase_data):
         pattern = phase_data['pattern']
@@ -717,7 +719,7 @@ def draw_ui(surface, player, boss_list):
     player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
     image = get_image("assets/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
     pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
-    if player.player_hit: 
+    if player.is_hit: 
         # pygame.draw.rect(surface, RED, (102 + hp_gap/2, HEIGHT - font_size - 40, player.hp/player.max_hp * 400, 25)) #grace hp = almost last hit
         pygame.draw.rect(surface, RED, (102 + hp_gap, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25)) #grace hp
 
@@ -864,7 +866,7 @@ def generate_boss_phase(num_phases=None): # generate boss stat randomly
         boss_phases[phase] = {
             'max_hp': random.randint(5, 15),
             'move_speed': random.randint(100, 700),
-            'y_axis': random.randint(150, 450),
+            'y_axis': random.randint(150, 600),
             'rate': random.uniform(0.2, 1.5),
             'pattern': random.choice(patterns),
 
@@ -878,9 +880,9 @@ def generate_boss_phase(num_phases=None): # generate boss stat randomly
         colors.remove(boss_phases[phase]['color'])
 
     return boss_phases
-
+amount_of_boss = 3
 circle_color_list = [RED, GREEN, YELLOW, BLACK, WHITE]
-for i in range(random.randint(1,2)): #generate 3 boss
+for i in range(min(5, amount_of_boss)): #generate 3 boss
     size = random.randint(100, 200)
     start_x = random.uniform(100, WIDTH - 100)
     direction=random.choice([1 , -1])
@@ -915,19 +917,19 @@ action = 0
 click_pos = None
 
 while running: 
-    dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
+    # dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
 
-    # og_dt = clock.tick(60) / 1000  #slow mo effect when overloaded, use when having too much frame drops
-    # og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
+    og_dt = clock.tick(60) / 1000  #slow mo effect when overloaded, use when having too much frame drops
+    og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
     
-    # fps = clock.get_fps() 
-    # # scale += ((Target scale) - cur_scale) * 5 * dt for smooth time scale transition
-    # time_scale = 1.0
-    # if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
-    # else: time_scale += (1.0 - time_scale) * 5 * og_dt
+    fps = clock.get_fps() 
+    # scale += ((Target scale) - cur_scale) * 5 * dt for smooth time scale transition
+    time_scale = 1.0
+    if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
+    else: time_scale += (1.0 - time_scale) * 5 * og_dt
 
-    # target_dt = 1 / 60  # use this or below?
-    # dt = target_dt * time_scale
+    target_dt = 1 / 60  # use this or below?
+    dt = target_dt * time_scale
     
     keys = pygame.key.get_pressed()
     action = 0
@@ -964,13 +966,22 @@ while running:
     for projectile in bullet_list[:]:
         projectile.update(dt)
 
-        if projectile.out_of_bounds():
-            bullet_list.remove(projectile)
-            continue
-        
         #Check i-frame & kolisi
         current_radius = PlayerTest.hitbox_radius + (PlayerTest.absorb_radius if PlayerTest.is_absorbing else 0) 
         if circle_collide(PlayerTest.rect.center, current_radius, projectile.rect.center, projectile.hitbox_radius):
+            # Got hit
+            if not PlayerTest.is_phasing and not PlayerTest.is_hit: 
+                bullet_list = []
+                PlayerTest.hp -= 1
+                PlayerTest.hit_time = pygame.time.get_ticks()
+                PlayerTest.is_hit = True
+                shake_timer = 0.25 # Trigger Screen Shake
+                spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, RED2_0, 10)
+                if PlayerTest.hp <= 0:
+                    print("GAME OVER")
+                    #running = False
+                continue
+            
             # Absorb
             if PlayerTest.is_absorbing and not PlayerTest.is_phasing: 
                 bullet_list.remove(projectile)
@@ -983,19 +994,13 @@ while running:
                     spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, GREEN, 15) # Heal Sparks
                 continue
 
-            # Got hit
-            if not PlayerTest.is_phasing and not PlayerTest.player_hit: 
-                bullet_list.remove(projectile)
-                PlayerTest.hp -= 1
-                PlayerTest.hit_time = pygame.time.get_ticks()
-                PlayerTest.player_hit = True
-                shake_timer = 0.25 # Trigger Screen Shake
-                spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, RED2_0, 10)
+            
 
-                if PlayerTest.hp <= 0:
-                    print("GAME OVER")
-                    #running = False
-                continue
+        if projectile.out_of_bounds():
+            if bullet_list: bullet_list.remove(projectile)
+            continue
+        
+        
         
     if shake_timer > 0:
         shake_timer -= dt

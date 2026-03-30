@@ -40,6 +40,7 @@ you can -add
 in the same Game loop
 
 im finna get copyrighted bruh
+this game literally looks like a chopped version of Touhou: Hero of the ice fairy
 
 Credits
 Me
