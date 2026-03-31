@@ -52,14 +52,15 @@ def get_end_pos(x, y, angle, length): # for line
     return (end_x, end_y)
 
 # Assets load - performance
-assets = {}
-def load_asset(image_path):
-    if image_path not in assets:
-        assets[image_path] = pygame.image.load(image_path).convert_alpha()
-    return assets[image_path]
+assets = {} 
+def load_asset(image_path): #load base image into cache
+    path = "assets/" + image_path
+    if path not in assets:
+        assets[path] = pygame.image.load(path).convert_alpha()
+    return assets[path]
 
 image_cache = {}
-def get_image(image_path, rect, # load image on rect
+def get_image(image_path, rect, # load image from cache or make a new image for cache into the assigned rectangle
                flipx = 0, flipy = 0, angle = 0,
                size_offsetx = 0, size_offsety = 0):
     size = (rect.width + size_offsetx, rect.height + size_offsety)
@@ -73,7 +74,6 @@ def get_image(image_path, rect, # load image on rect
         image_cache[key] = image
     return image_cache[key]
 
-
 class GameObject: #Combination of Circle and Rect hitbox, based on usage
     def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10, 
                                                             image_path = None,
@@ -85,16 +85,14 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
         
+        self.image_path = image_path
         self.image = None
         #use local variable for load for one time use
-        if image_path: self.image = get_image(image_path, self.rect, flipx, flipy, angle, size_offsetx, size_offsety)
+        if self.image_path: self.image = get_image(image_path, self.rect, flipx, flipy, angle, size_offsetx, size_offsety)
         
-    def draw_self(self, surface, new_image_load = None): # if self image need to change
-        if new_image_load: self.image = new_image_load   
-
-        image_rect = self.image.get_rect(center=self.rect.center)
-            
-        if self.image: 
+    def draw_self(self, surface):
+        if self.image: #note to self, change image on self.image by self.image = get_image(new image)
+            image_rect = self.image.get_rect(center=self.rect.center)
             surface.blit(self.image, image_rect) 
             if show_img_rect: pygame.draw.rect(surface, WHITE, image_rect, 2)
         else: pygame.draw.rect(surface, WHITE, self.rect, 2) # no texture
@@ -104,9 +102,9 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage
         pygame.draw.circle(surface, color, self.rect.center, hitbox_radius, border_width) 
 
 class Player(GameObject):
-    def __init__(self, max_hp=5, name = "Baka", ):
+    def __init__(self, max_hp=5, name = "Baka", image = "cirno.png", attack_type = 'slash'):
         super().__init__(x= 50, y=MainPlatform.rect.top, width=50, height=100, hitbox_radius=15,
-                         image_path="assets/cirno.png", size_offsetx=70, size_offsety=30)
+                         image_path="character/"+image, size_offsetx=70, size_offsety=30)
         self.name = name
         self.sizeHitbox = self.hitbox_radius
         self.speedX = 400
@@ -154,6 +152,7 @@ class Player(GameObject):
         self.land_delay_timer = 0
         self.land_delayed = False
         
+        self.attack_type = attack_type
         self.is_attacking = False
         self.attack_duration = 0.2 # Window attack
         self.attack_cd = 0.8
@@ -341,11 +340,11 @@ class Player(GameObject):
                 
     def draw(self, surface):
         #Character
-        img = get_image(image_path="assets/cirno.png", flipx=0 if self.facing_right else 1, rect=self.rect, 
+        self.image = get_image(image_path=self.image_path, flipx=0 if self.facing_right else 1, rect=self.rect, 
                                                                                             size_offsetx=70, 
                                                                                             size_offsety=30)
         if not (self.is_hit and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
-            self.draw_self(surface, img)
+            self.draw_self(surface)
 
         if self.is_absorbing:
             pygame.draw.circle(surface, self.absorb_color, self.rect.center, self.hitbox_radius + self.absorb_radius, 5)
@@ -371,7 +370,7 @@ class Player(GameObject):
 
             image_list = []
             for i in range(7):
-                image_list.append(get_image(f"assets/slash-{i}.gif", rect=self.attack_rect, 
+                image_list.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", rect=self.attack_rect, 
                                                 size_offsetx=100 if (self.facing_last == 'left' or self.facing_last == 'right')
                                                         else 200,
                                                 size_offsety=240 if (self.facing_last == 'left' or self.facing_last == 'right')
@@ -538,13 +537,13 @@ class Player(GameObject):
                 self.rect.centery += self.gravity * dt
 
 class Boss(GameObject): #boss use rectangular hitbox
-    def __init__(self, name, phase_data, w=140, h=140, start_x = WIDTH//2, direction = 1, circle_color = WHITE): # 1 to go right, -1 to go left 
-        self.phases = phase_data
+    def __init__(self, name, phase_data, w=140, h=140, start_x = WIDTH//2, direction = 1, circle_color = WHITE, image = "enemy.png"): # 1 to go right, -1 to go left 
+        self.phases = phase_data                                                                                  
         self.total_phases = len(phase_data)
         self.current_phase = 1
         # data phase 1
         start_y = self.phases[self.current_phase]['y_axis']
-        super().__init__(x=start_x, y=start_y, width=w, height=h, hitbox_radius=30, image_path="assets/enemy.png", #default
+        super().__init__(x=start_x, y=start_y, width=w, height=h, hitbox_radius=30, image_path="boss/" + image, 
                                                                                     size_offsetx=125, size_offsety=125)
         self.name = name
         self.circle_color = circle_color
@@ -597,15 +596,14 @@ class Boss(GameObject): #boss use rectangular hitbox
             self.fire_timer = phase['rate']
             if pygame.time.get_ticks() - player.hit_time >= 1000: #delay after player get hit & first spawn
                 self.shoot(player, bullet_list, phase)
-
-            
+          
     def shoot(self, player, bullet_list, phase_data):
         pattern = phase_data['pattern']
         num_bullets = phase_data['num_bullet']
         spd = phase_data['bullet_spd']
         size = phase_data['bullet_size']
         color = phase_data['color']
-        image = 'assets/' + phase_data['image'] + '.png'
+        image = phase_data['image'] + '.png'
         cx, cy = self.rect.center
         
         if pattern == 'fan':
@@ -621,7 +619,7 @@ class Boss(GameObject): #boss use rectangular hitbox
                 by = math.sin(a) * spd
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5 #snap to 5* 0, 5, 10 etc for performance, angle is float so round it
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image_path=image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
                 
         if pattern == 'circle':
             step = (math.pi * 2) / num_bullets
@@ -631,7 +629,7 @@ class Boss(GameObject): #boss use rectangular hitbox
                 by = math.sin(a) * spd
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color,  image_path=image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
                 
         if pattern == 'chaos': # Random from inside boss
             for i in range(num_bullets):
@@ -640,7 +638,7 @@ class Boss(GameObject): #boss use rectangular hitbox
                 by = math.sin(a) * spd
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image_path=image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
 
         if pattern == 'random': # Random entire screen
             for i in range(num_bullets):
@@ -662,7 +660,7 @@ class Boss(GameObject): #boss use rectangular hitbox
                     by = random.uniform(-50, 50)
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image_path=image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
                 
     def take_damage(self):
         self.hp -= 1
@@ -687,11 +685,11 @@ class Boss(GameObject): #boss use rectangular hitbox
         self.draw_self(world_surface)
 
 class Bullet(GameObject):
-    def __init__(self, x, y, vx, vy, hitbox_radius , color=CYAN, image_path="assets/bullet-orb.png", #default
+    def __init__(self, x, y, vx, vy, hitbox_radius , color=CYAN, image="bullet-orb.png", #default
                                                                  flipx = 0, flipy = 0, angle = 0, 
                                                                  size_offsetx=60, size_offsety=32.5):
         w = h = 2*hitbox_radius
-        super().__init__(x, y, w, h, hitbox_radius, image_path, flipx, flipy, angle, size_offsetx, size_offsety)
+        super().__init__(x, y, w, h, hitbox_radius, f"bullet/{image}", flipx, flipy, angle, size_offsetx, size_offsety)
         self.vx = vx
         self.vy = vy
         self.color = color
@@ -717,7 +715,7 @@ def draw_ui(surface, player, boss_list):
     # HP Bar
     hp_gap = 1/player.max_hp * 420
     player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
-    image = get_image("assets/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
+    image = get_image("ui/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
     pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
     if player.is_hit: 
         # pygame.draw.rect(surface, RED, (102 + hp_gap/2, HEIGHT - font_size - 40, player.hp/player.max_hp * 400, 25)) #grace hp = almost last hit
@@ -786,7 +784,7 @@ def spawn_particles(x, y, color, count=5, is_burst=False):
 
 
 
-MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="assets/mainplatform.png",
+MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="platform/mainplatform.png",
                                                         size_offsety=1200)
 #Platform image offset
 plat_size_offsetx=65 
@@ -794,7 +792,7 @@ plat_size_offsety=250
 plat_pos_offsetx=30
 plat_pos_offsety=125
 
-def add_plat(plat_list, x, y, w=500, image="assets/platform.png"):
+def add_plat(plat_list, x, y, w=500, image="platform/platform.png"):
     plat_list.append(GameObject(x , (HEIGHT - y - 150), w, 15, image_path=image,
                                 size_offsetx=plat_size_offsetx,
                                 size_offsety=plat_size_offsety))
@@ -861,16 +859,17 @@ def generate_boss_phase(num_phases=None): # generate boss stat randomly
     patterns = ['circle', 'chaos', 'random', 'fan']
     images = ['bullet-1', 'bullet-2', 'bullet-3', 'bullet-orb']
     colors = [ORANGE, PURPLE, BLUE, CYAN, GOLD]
-
+    max_bullet = 7
+    max_rate = 1.0
     for phase in range(1, num_phases + 1):
         boss_phases[phase] = {
             'max_hp': random.randint(5, 15),
             'move_speed': random.randint(100, 700),
             'y_axis': random.randint(150, 600),
-            'rate': random.uniform(0.2, 1.5),
+            'rate': random.uniform(0.2, max_rate),
             'pattern': random.choice(patterns),
 
-            'num_bullet': random.randint(3, 20),
+            'num_bullet': random.randint(3, max_bullet),
             'bullet_spd': random.randint(200, 500),
             'bullet_size': random.randint(5, 12),
 
@@ -902,13 +901,16 @@ PlayerTest = Player(max_hp=15, name="HelicopKun")
 # Screen Shake Variables
 shake_timer = 0
 world_surface = pygame.Surface((WIDTH, HEIGHT))
-background_image = pygame.image.load("assets/background.png")
+
+bg = "icy_cave"
+background_image = pygame.image.load('assets/background/' + bg + '.png')
 background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
 
 #Debugging
-show_hitbox = True
-show_bullet_hitbox = True
-show_atk_hitbox = True
+show_hitbox = False
+show_player_hitbox = False
+show_bullet_hitbox = False
+show_atk_hitbox = False
 show_img_rect = False
 
 clock = pygame.time.Clock()
@@ -969,6 +971,19 @@ while running:
         #Check i-frame & kolisi
         current_radius = PlayerTest.hitbox_radius + (PlayerTest.absorb_radius if PlayerTest.is_absorbing else 0) 
         if circle_collide(PlayerTest.rect.center, current_radius, projectile.rect.center, projectile.hitbox_radius):
+            # Absorb
+            if PlayerTest.is_absorbing and not PlayerTest.is_phasing: 
+                if bullet_list: bullet_list.remove(projectile)
+                PlayerTest.phase_bar = min(2 , PlayerTest.phase_bar + 0.3)
+                PlayerTest.action_cd_timer = max(0 , PlayerTest.action_cd_timer - PlayerTest.absorb_cd/3) # Lower cd if parried
+                spawn_particles(projectile.rect.centerx, projectile.rect.centery, CYAN2_0, 6) # Absorb Sparks
+                PlayerTest.absorb_count += 1
+                if PlayerTest.absorb_count >= 5:
+                    PlayerTest.hp = min(PlayerTest.hp + 1, PlayerTest.max_hp)
+                    PlayerTest.absorb_count = 0
+                    spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, GREEN, 15) # Heal Sparks
+                continue
+            
             # Got hit
             if not PlayerTest.is_phasing and not PlayerTest.is_hit: 
                 bullet_list = []
@@ -981,40 +996,21 @@ while running:
                     print("GAME OVER")
                     #running = False
                 continue
-            
-            # Absorb
-            if PlayerTest.is_absorbing and not PlayerTest.is_phasing: 
-                bullet_list.remove(projectile)
-                PlayerTest.action_cd_timer = max(0 , PlayerTest.action_cd_timer - PlayerTest.absorb_cd/3) # Lower cd if parried
-                spawn_particles(projectile.rect.centerx, projectile.rect.centery, CYAN2_0, 6) # Absorb Sparks
-                PlayerTest.absorb_count += 1
-                if PlayerTest.absorb_count >= 5:
-                    PlayerTest.hp = min(PlayerTest.hp + 1, PlayerTest.max_hp)
-                    PlayerTest.absorb_count = 0
-                    spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, GREEN, 15) # Heal Sparks
-                continue
-
-            
-
+    
         if projectile.out_of_bounds():
             if bullet_list: bullet_list.remove(projectile)
             continue
-        
-        
-        
+    
     if shake_timer > 0:
         shake_timer -= dt
+
     
     # Draw objects 
     world_surface.blit(background_image, (0,0))
-    # world_surface.fill("background.png")
     
     for platform in Platform_list:
         if show_hitbox: pygame.draw.rect(world_surface, BROWN, platform.rect) #hitbox
         platform.draw_self(world_surface)
-    
-    PlayerTest.draw(world_surface)
-    if show_hitbox: PlayerTest.draw_hitcircle(world_surface, color=YELLOW, hitbox_radius=PlayerTest.hitbox_radius, border_width=3)
     
     for projectile in bullet_list:
         projectile.draw_self(world_surface)
@@ -1023,7 +1019,10 @@ while running:
     for b in bosses:
         b.draw(world_surface)
         if show_hitbox: pygame.draw.rect(world_surface, RED, b.rect, 2) # boss hitbox
-        
+    
+    PlayerTest.draw(world_surface)
+    if show_player_hitbox: PlayerTest.draw_hitcircle(world_surface, color=YELLOW, hitbox_radius=PlayerTest.hitbox_radius, border_width=3)
+       
     for p in particles:
         p.draw(world_surface)
 
