@@ -88,7 +88,7 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
         hitbox_radius = self.hitbox_radius if hitbox_radius is None else hitbox_radius
         pygame.draw.circle(surface, color, self.rect.center, hitbox_radius, border_width) 
 
-class Player(GameObject):
+class Player(GameObject): #todo : will fix keyboard input only
     def __init__(self, max_hp=5, name = "Baka", image = "cirno.png", attack = 'slash'):
         super().__init__(x= 50, y=MainPlatform.rect.top, width=50, height=100, hitbox_radius=15,
                          image_path="character/"+image, size_offsetx=70, size_offsety=30)
@@ -145,13 +145,14 @@ class Player(GameObject):
         self.attack_hitboxes = []
         self.attack_hitboxes_active = [] #idk if this is useful
         self.attack_duration = self.attack_type_data['duration']# Window attack
-        self.attack_cd = 0.8
-        self.attack_scale = 2
+        self.attack_cd = self.attack_type_data['cd']
+        self.attack_scale = self.attack_type_data['scale']
         self.attack_frame_count = self.attack_type_data['frame_count']
         self.attack_active_frame = self.attack_type_data['active_frames']   
         self.attack_frame_timer = 0 # for attack frame delay
         self.attack_cur_frame = 0
         self.attack_image_center = self.rect.center
+        self.copy_rect = None #copying self old pos
           
     def update(self, keys, dt, platforms):
         self.platform_group = platforms
@@ -183,13 +184,13 @@ class Player(GameObject):
             self.attack_images = [] #get image
             for i in range(self.attack_frame_count + 1):
                 self.attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", angle=self.facing_angle))
-                offset_dist = 250
+                offset_dist = 300
                 angle = math.radians(self.facing_angle)
             self.attack_image_center = ( # get setup pos (static pos)
                 self.rect.centerx + math.cos(angle) * offset_dist,
                 self.rect.centery + math.sin(-angle) * offset_dist
             )
-            self.generate_attack_hitbox()
+            self.copy_rect = self.rect.copy()
             
         # Action bar update
         self.action_bar_rectMax = pygame.Rect(0, 0, 10, 
@@ -237,7 +238,7 @@ class Player(GameObject):
                 # Animation finished
                 self.attack_cur_frame = 0
             
-            frame_delay = self.attack_duration*1000 / self.attack_frame_count 
+            frame_delay = self.attack_duration*750 / self.attack_frame_count 
             if pygame.time.get_ticks() - self.attack_frame_timer > frame_delay:
                 self.attack_frame_timer = pygame.time.get_ticks()
                 self.attack_cur_frame += 1
@@ -443,15 +444,16 @@ class Player(GameObject):
             self.attacking()
             self.attack_timer -= dt
             if self.attack_timer <= 0:
-                self.attack_hitboxes.clear() # reset hitbox and frame
+                self.attack_hitboxes.clear() # reset hitbox (also frame in case of bad timing)
                 self.attack_hitboxes_active.clear()
                 self.attack_active = False
                 self.attack_cur_frame = 0
 
     def attacking(self):
-        None
-        
-            
+        self.attack_hitboxes = self.generate_attack_hitbox()
+        if self.attack_active_frame[0] <= self.attack_cur_frame <= self.attack_active_frame[1]:
+            self.attack_hitboxes_active = self.attack_hitboxes
+        else: self.attack_hitboxes_active = []
             
     def generate_attack_hitbox(self): # generate chain hitbox trajectory
         n = 10  # more = smoother coverage
@@ -459,8 +461,9 @@ class Player(GameObject):
         if self.attack_type == 'slash':
             length = 2 * self.height
             thickness = self.width
-        if self.attack_type == 'something': 
-            None
+        if self.attack_type == 'pierce': 
+            length = 4 * self.height
+            thickness = self.width
 
         length *= self.attack_scale
         thickness *= self.attack_scale
@@ -469,17 +472,17 @@ class Player(GameObject):
         dx = math.cos(angle)
         dy = math.sin(-angle)
 
-
-        copy_rect = self.rect.copy() # copy for fixed attack pos
+        hitbox_list = []
         for i in range(n): #generate n amount of hitbox on a chain hitbox, for e.g: [P]->[][][][][] <-- player's attack hitbox
-            steps = i / n
+            steps = i / (n + 1)
 
-            x = copy_rect.centerx + dx * length * steps
-            y = copy_rect.centery + dy * length * steps
+            x = self.copy_rect.centerx + dx * length * steps
+            y = self.copy_rect.centery + dy * length * steps
 
             rect = pygame.Rect(0, 0, thickness, thickness)
             rect.center = (x, y)
-            self.attack_hitboxes.append(rect)
+            hitbox_list.append(rect)
+        return hitbox_list
         
 
 class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: check modularity
@@ -802,9 +805,9 @@ add_plat(Platform_list, x=1600, y=250)
 # ================================================ Player making ==========================================================================================================================================
 
 attack_type = {
-            "slash": {"duration": 1.0, "active_frames": (2, 6), "frame_count": 6,},
-            "pierce": {"duration": 0.50, "active_frames": (3, 8), "frame_count": 8,},
-            "spin" : {"duration": 0.70, "active_frames": (2, 10),"frame_count": 12,},
+            "slash": {"duration": 0.25, "active_frames": (2, 6), "frame_count": 9, 'cd': 0.5, 'scale':3},
+            "pierce": {"duration": 0.50, "active_frames": (4, 8), "frame_count": 8,'cd': 1.2, 'scale':3},
+            "spin" : {"duration": 0.70, "active_frames": (2, 10),"frame_count": 12,'cd': 1.0, 'scale':3},
         }
 
 PlayerTest = Player(max_hp=15, name="HelicopKun", attack='slash')
