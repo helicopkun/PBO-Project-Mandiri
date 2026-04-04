@@ -68,7 +68,7 @@ mengenai beberapa sistem game "Maidenless Danmaku":
         Polimorfisme: 
         Setiap entitas mengimplementasikan logika update() dan draw() mereka sendiri, namun tetap menggunakan mesin rendering yang sama pada  world-surface.
 
-2. Advanced Feature
+2. Player Feature
     Sistem Pergerakan (move):
         Delta-Time (dt) Scaling: 
         Memastikan kecepatan gerak konsisten di berbagai frame rate (FPS).
@@ -87,7 +87,7 @@ mengenai beberapa sistem game "Maidenless Danmaku":
         Posisi dan sudut seluruh rantai hitbox dihitung secara real-time berdasarkan arah hadap karakter atau posisi mouse. Hal ini memberikan fleksibilitas serangan yang dinamis di ruang dua dimensi tanpa memerlukan aset gambar yang banyak untuk setiap sudut arah.
 
         Sistem Hitbox Berantai (Chain Hitbox Style):
-        Berbeda dengan hitbox persegi tunggal yang sering terdistorsi saat diputar, sistem ini menggunakan serangkaian lingkaran kolisi kecil yang disusun berantai. Hal ini memungkinkan gambar senjata/serangan diputar secara bebas (360 derajat) sementara area deteksi serangan tetap presisi dan mengikuti bentuk visual tanpa perubahan skala (distortion-free).
+        Berbeda dengan hitbox persegi tunggal yang sering terdistorsi saat diputar, sistem ini menggunakan serangkaian lingkaran kolisi kecil yang disusun berantai. Hal ini memungkinkan gambar senjata/serangan diputar secara bebas (360 derajat tapi di snap 15*) sementara area deteksi serangan tetap presisi dan mengikuti bentuk visual tanpa perubahan skala (distortion-free).
 
         Logika Active Frames:
         Mengadopsi mekanik fighting game profesional, di mana serangan dibagi menjadi fase-fase spesifik. Hitbox hanya akan aktif dan mampu menghasilkan damage pada frame tertentu dalam sebuah animasi. Ini mencegah serangan terasa "setiap saat aktif" dan memaksa pemain untuk memperhatikan timing serangan mereka.
@@ -98,7 +98,8 @@ mengenai beberapa sistem game "Maidenless Danmaku":
         Dynamic Hitbox Slicing (Sweep & Grow Effect):
         Mekanisme hitbox menggunakan teknik List Slicing yang terikat pada progres frame animasi. Sistem menghitung "Leading Edge" (ujung depan) dan "Trailing Edge" (ekor belakang) secara real-time. Hal ini memastikan area serangan tidak muncul sekaligus, melainkan "menyapu" ruang secara bertahap mengikuti gerakan visual senjata, memberikan presisi kolisi yang jauh lebih realistis.
 
-
+        Multi-Attack & Animasi Independen (list-based):
+        Serangan dikelola menggunakan list active_attack sebagai kontainer objek data mandiri. Setiap serangan dalam list memiliki lifecycle sendiri. Serangan bisa tetap aktif di arena (lingering) meskipun karakter sudah berpindah ke state lain (lari/lompat), memberikan gameplay yang lebih cair. Sistem secara otomatis menghapus objek serangan dari list segera setelah durasi atau frame animasi terakhir tercapai, menjaga efisiensi penggunaan memori (RAM).
 
 3. Manajemen Aset yang Efisien
     Sistem Image Cache: Terdapat fungsi image_cache yang berfungsi untuk mencegah pemuatan ulang file .png yang sama berkali-kali. Hal ini secara drastis mengurangi penggunaan memori dan mencegah terjadinya stuttering atau patah-patah saat game berjalan.

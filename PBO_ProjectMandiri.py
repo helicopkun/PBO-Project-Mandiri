@@ -409,7 +409,7 @@ class Player(GameObject):
                 index = int((self.facing_angle + 22.5) // 45) % 8 # 22.5 for shifting angle, e.g: without 0 - 44 -> 0 instead turn into (-22.5 + 22.5) to (22.5 + 22.5) -> 0
                 self.facing = direction[index] # convert 24-d to 8-d
                 
-                self.facing_angle = round(self.facing_angle / 15) * 15 #rounding (snapping)
+                self.facing_angle = round(self.facing_angle / 15) * 15 # snap to 15*
 
                 # Reset facing after different direction from current direction attack
                 if self.facing in {'right', 'top-right', 'bottom-right'}:
