@@ -6,8 +6,8 @@ import math
 pygame.init()
 pygame.font.init()
 
-WIDTH = 1920
-HEIGHT = 1080
+WIDTH = 1600
+HEIGHT = 900
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Untuk UI
 pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name for ts
@@ -88,10 +88,17 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
         hitbox_radius = self.hitbox_radius if hitbox_radius is None else hitbox_radius
         pygame.draw.circle(surface, color, self.rect.center, hitbox_radius, border_width) 
 
-class Player(GameObject): #todo : will fix keyboard input only and fix draw attack
+class Player(GameObject):
     def __init__(self, max_hp=5, name = "Baka", image = "cirno.png", attack = 'slash'):
-        super().__init__(x= 50, y=MainPlatform.rect.top, width=50, height=100, hitbox_radius=15,
+        super().__init__(x= 50, y=MainPlatform.rect.top - 50, width=50, height=100, hitbox_radius=15,
                          image_path="character/"+image, size_offsetx=70, size_offsety=30)
+        # If value = None, 0, T|F, Rect, string  -> will be used as referenced var, 
+        # else -> only for character stats (for easier scaling), duration is scaled on seconds
+        
+        # elapsed -> stopwatch (0,1,2, until n) counting up <-> threshold
+        # timestamp -> records the time an action triggered <-> duration
+        # remaining -> timer (n, n-1, 0) counting down
+
         self.name = name
         self.sizeHitbox = self.hitbox_radius
         self.speedX = 400
@@ -103,29 +110,33 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
         self.absorb_count = 0 
 
         self.grace_active = False # i-frame setelah kena hit
-        self.grace_time = 0
         self.grace_duration = 1.5
+        self.grace_timestamp = 0
 
         self.is_phasing = False
         self.phase_speed = 1.5
+
+        self.phase_bar = 0 # current bar
         self.phase_barMax = 2 #sekon
         self.phase_barRate = 0.5 #bar recharge per second
-        self.phase_barCD = 0.6 #cooldown before recharge
-        self.phase_barCD_time = 0
-        self.phase_bar = 0 # current bar
+        self.phase_barCD_duration = 0.6 #cooldown before recharge
+        self.phase_barCD_timestamp = 0
 
-        self.is_jumping = False 
-        self.jump_delay = 0                          
-        self.max_jump_delay = 0.15 # jump cooldown
-        self.jump_time = 0
-        self.max_jump_time = 0.4 # jump duration
-        self.air_time = 0
-        self.air_delay = 0.1 # airborne
+        self.is_jumping = False
+        self.jump_duration_threshold = 0.4 # jump duration
+        self.jump_duration_elapsed = 0                    
+        self.jump_recovery_threshold = 0.15 # jump cooldown 
+        self.jump_recovery_elapsed = 0
+        self.airborne_threshold = 0.1 # airborne duration 
+        self.airborne_elapsed = 0
         self.current_platform = MainPlatform
         self.platform_group = None
+        self.quickfall_plat_threshold = 0.25
+        self.quickfall_plat_elapsed = 0
+        self.old_bottom = self.rect.bottom
         
-        self.action_cd_timer = 0 # action cooldown
-        self.action_barMax = 1.3
+        self.action_cd_remaining = 0 # action cooldown
+        self.action_cd_barMax = 1.3
 
         self.absorb_active = False
         self.absorb_duration = 0.3  # Window absorb
@@ -136,8 +147,8 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
         self.facing = 'right'
         self.facing_angle = 0
         self.facing_right = True
-        self.look_delay_timer = 0
-        self.look_delay = False
+        self.look_delay_timestamp = 0
+        self.look_delay_duration = 0.2
         
         self.attack_active = False
         self.attack_type = attack
@@ -147,9 +158,9 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
         self.attack_duration = self.attack_type_data['duration']# Window attack
         self.attack_cd = self.attack_type_data['cd']
         self.attack_scale = self.attack_type_data['scale']
-        self.attack_frame_count = self.attack_type_data['frame_count']
+        self.attack_frame_count = self.attack_type_data['frame_count'] + 1 #include 0 -> n amount instead of 0 -> n-1 frame
         self.attack_active_frame = self.attack_type_data['active_frames']   
-        self.attack_frame_timer = 0 # for attack frame delay
+        self.attack_frame_timestamp = 0
         self.attack_cur_frame = 0
         self.attack_image_center = self.rect.center
         self.copy_rect = None #copying self old pos
@@ -167,24 +178,23 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
         self.bar_indicator()
         
         # ======= Actions =======
-        if not (self.is_phasing or self.action_cd_timer > 0 or self.grace_active):
+        if not (self.is_phasing or self.action_cd_remaining > 0 or self.grace_active):
             #Absorb
-            if (keys[pygame.K_l] or action == 3):
-                                                        
+            if (keys[pygame.K_l] or action == 3):                                            
                 self.absorb_active = True
                 self.absorb_timer = self.absorb_duration
-                self.action_cd_timer = self.absorb_cd
+                self.action_cd_remaining = self.absorb_cd
                 
             #Attack
             if (keys[pygame.K_k] or action == 1):
                 self.attack_active = True
-                self.attack_timer = self.attack_duration
-                self.action_cd_timer = self.attack_cd
-                self.attack_images = [] #get image
-                for i in range(self.attack_frame_count + 1):
-                    self.attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", angle=self.facing_angle))
-                    offset_dist = 300
-                    angle = math.radians(self.facing_angle)
+                self.action_cd_remaining = self.attack_cd
+                self.attack_images = [] #get image and reset if it existed
+                offset_dist = 300
+                angle = math.radians(self.facing_angle)
+                for i in range(self.attack_frame_count):
+                    self.attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", 
+                                                        angle=self.facing_angle))
                 self.attack_image_center = ( # get setup pos (static pos)
                     self.rect.centerx + math.cos(angle) * offset_dist,
                     self.rect.centery + math.sin(-angle) * offset_dist
@@ -203,29 +213,25 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
             pygame.draw.circle(surface, self.absorb_color, self.rect.center, self.hitbox_radius + self.absorb_radius, 5)
 
         if self.attack_active:
-            # Check if the animation isnt finished
             if self.attack_cur_frame < self.attack_frame_count:
                 current_img = self.attack_images[self.attack_cur_frame]
                 atk_img_rect = current_img.get_rect(center=(self.attack_image_center))
-                print(self.attack_cur_frame)
                 surface.blit(current_img, atk_img_rect)
                 if show_atk_hitbox:
                     for hitbox in self.attack_hitboxes:
                         pygame.draw.rect(surface, YELLOW, hitbox, 2)
                     for hitbox in self.attack_hitboxes_active:
-                        pygame.draw.rect(surface, RED2_0, hitbox, 2)                
-            else:
-                # Animation finished
-                self.attack_cur_frame = 0
-            
-            frame_delay = self.attack_duration*750 / self.attack_frame_count 
-            if pygame.time.get_ticks() - self.attack_frame_timer > frame_delay:
-                self.attack_frame_timer = pygame.time.get_ticks()
-                self.attack_cur_frame += 1
+                        pygame.draw.rect(surface, RED2_0, hitbox, 2)
 
+                frame_delay = (self.attack_duration*1000) / self.attack_frame_count 
+                if pygame.time.get_ticks() - self.attack_frame_timestamp > frame_delay:
+                    self.attack_frame_timestamp = pygame.time.get_ticks()
+                    self.attack_cur_frame += 1            
+            else:
+                self.attack_cur_frame = 0
+                self.attack_active = False
             
-            
-        if self.action_cd_timer > 0:
+        if self.action_cd_remaining > 0:
             pygame.draw.rect(surface, GREY, self.action_bar_rectMax) # BG
             pygame.draw.rect(surface, YELLOW, self.action_bar_rect)
             pygame.draw.rect(surface, WHITE, self.action_bar_rectMax, 2)
@@ -267,31 +273,31 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
     def on_platform(self):
         for platform in self.platform_group:
             if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right: # ketika ujung player memasuki area platform
-                if (self.rect.bottom >= platform.rect.top and # ketika player tepat berada di platform / overlap dalam platform
-                    self.rect.bottom <= platform.rect.top + platform.height / 2 # toleransi overlap, semakin kecil semakin ketat
-                ):
+                if self.rect.bottom >= platform.rect.top and self.old_bottom <= platform.rect.top + 5:
                     self.current_platform = platform
                     return True
+        self.current_platform = MainPlatform
         return False
     
     def move(self, keys, dt):
-        if keys[pygame.K_w]: # set delay timer after jump
-            self.look_delay_timer = pygame.time.get_ticks()
-            self.look_delay = True
+        on_plat = self.on_platform() #cache on_plat if dont need to check all the time
+        self.old_bottom = self.rect.bottom # save old footing
+
+        if keys[pygame.K_w]: # set delay timer after look up (or down too? if i wanna)
+            self.look_delay_timestamp = pygame.time.get_ticks()
             
-        #Flying movement
-        if keys[pygame.K_LSHIFT] and self.action_cd_timer <= 0:
+        #Phasing movement
+        if keys[pygame.K_LSHIFT] and self.action_cd_remaining <= 0:
             if self.phase_bar > 0:
                 self.phase_bar -= dt
                 self.hitbox_radius = 0
                 self.is_phasing = True 
             else:
                 self.is_phasing = False
-            self.phase_barCD_time = pygame.time.get_ticks() / 1000  # set CD after phaseing
+            self.phase_barCD_timestamp = pygame.time.get_ticks()  # set CD after phasing
 
         else:
-            curCD_time = pygame.time.get_ticks() / 1000
-            if curCD_time - self.phase_barCD_time >= self.phase_barCD: # Recharge after CD
+            if pygame.time.get_ticks() - self.phase_barCD_timestamp >= self.phase_barCD_duration * 1000: # Recharge after CD
                 self.phase_bar = min(self.phase_barMax, self.phase_bar + self.phase_barRate * dt)
             
             self.is_phasing = False
@@ -321,54 +327,58 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
             return #agar tidak double dari movement biasa 
 
         #Horizontal movement
-        if keys[pygame.K_a] and self.rect.left > 0:
+        if keys[pygame.K_a]:
                 self.rect.centerx -= self.speedX * dt
                 self.rect.left = max(0, self.rect.left)
 
-        if keys[pygame.K_d] and self.rect.right < WIDTH:
+        if keys[pygame.K_d]:
                 self.rect.centerx += self.speedX * dt
                 self.rect.right = min(WIDTH, self.rect.right)
 
         #Vertical movement
-        if keys[pygame.K_s] and not self.rect.bottom >= MainPlatform.rect.top:
+        if keys[pygame.K_s]:
+            allow_quickfall = self.quickfall_plat_elapsed >= self.quickfall_plat_threshold
             self.rect.centery += self.speedY * dt
-        if keys[pygame.K_w] and (not keys[pygame.K_s]
-                                 and self.on_platform() 
-                                 and not self.is_jumping):
-            if self.jump_delay >= self.max_jump_delay:
+
+            if self.on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
+                self.rect.bottom = self.current_platform.rect.top #clamp to cur plat
+            else:
+                self.rect.bottom = min(MainPlatform.rect.top, self.rect.bottom)
+
+        if keys[pygame.K_s] and self.on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
+        else :                                      self.quickfall_plat_elapsed = 0
+
+        if keys[pygame.K_w] and on_plat and not self.is_jumping:
+            if self.jump_recovery_elapsed >= self.jump_recovery_threshold:
                 self.is_jumping = True                  
-                self.jump_time = 0
-                self.jump_delay = 0
+                self.jump_duration_elapsed = 0
+                self.jump_recovery_elapsed = 0
         
         if self.is_jumping:
-            if keys[pygame.K_w] and (not keys[pygame.K_s]
-                                     and self.rect.top > 0):
-                if self.jump_time < self.max_jump_time:  # Durasi lompat jika di tahan sampai max                            
-                    self.rect.centery -= self.speedY * dt
-                    self.jump_time += dt
-                else:
-                    self.is_jumping = False
-            else:                                 # Jika berhenti ditahan = sudah tidak jumping
+            if keys[pygame.K_w] and not keys[pygame.K_s] and self.jump_duration_elapsed < self.jump_duration_threshold:  # Durasi lompat jika di tahan -> sampai max                            
+                self.rect.centery -= self.speedY * dt
+                self.rect.top = max(0, self.rect.top)
+                self.jump_duration_elapsed += dt
+            else: # Jika w berhenti ditahan, quick-fall, mencapai batas max = sudah tidak jumping
                 self.is_jumping = False
 
-        #Reset airborne, kondisi jump, etc jika berada di platform
-        if self.on_platform() and not self.is_jumping and not keys[pygame.K_s]:
-            self.jump_delay += dt
-            self.air_time = 0
-            if self.current_platform is MainPlatform:
-                self.rect.bottom = MainPlatform.rect.top
+        #Reset airborne, cooldown jump, etc jika berada di platform
+        if self.on_platform() and not (self.is_jumping):
+            self.jump_recovery_elapsed += dt
+            self.airborne_elapsed = 0
                  
         #Gravitasi
-        if not self.on_platform() and not self.is_jumping:
-            self.air_time += dt
-            if self.air_time > self.air_delay: # Airborne
-                self.rect.centery += self.gravity * dt
+        if not (self.on_platform() or self.is_jumping):
+            self.airborne_elapsed += dt # set airborne
+            if self.airborne_elapsed > self.airborne_threshold: #stop airborne if airborne_elapsed = max
+                slowing = self.gravity/2 if keys[pygame.K_w] else 0 
+                self.rect.centery += (self.gravity - slowing) * dt
+                self.rect.bottom = min(MainPlatform.rect.top, self.rect.bottom)
 
     def facing_indicator(self):
         #Movement facing indicator
         if not (self.attack_active or self.absorb_active):
-            if pygame.time.get_ticks() - self.look_delay_timer >= 200: # delay
-                self.look_delay = False
+            if pygame.time.get_ticks() - self.look_delay_timestamp >= self.look_delay_duration*1000: # delay
                 self.facing = 'right' if self.facing_right else 'left'
 
             if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing_right = False
@@ -377,16 +387,16 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
             if keys[pygame.K_w] and not keys[pygame.K_s]: self.facing = 'up'
             if keys[pygame.K_s] and not keys[pygame.K_w]: self.facing = 'down'
 
-            if keys[pygame.K_w]: 
+            if self.facing == 'up': 
                 if keys[pygame.K_d]: self.facing = 'top-right'
                 if keys[pygame.K_a]: self.facing = 'top-left'
 
-            if keys[pygame.K_s]:
+            if self.facing == 'down':
                 if keys[pygame.K_d]: self.facing = 'bottom-right'
                 if keys[pygame.K_a]: self.facing = 'bottom-left'
                 
         # Attack facing indicator
-        if self.action_cd_timer <= 0:
+        if self.action_cd_remaining <= 0:
             direction = ['right', 'top-right', 'up', 'top-left', 'left', 'bottom-left', 'down', 'bottom-right']
             if action == 1:
                 mx , my = click_pos
@@ -417,12 +427,12 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
         else: self.hitbox_radius = self.sizeHitbox
         
         #Hit Grace      
-        if self.grace_active and pygame.time.get_ticks() - self.grace_time >= self.grace_duration * 1000:
+        if self.grace_active and pygame.time.get_ticks() - self.grace_timestamp >= self.grace_duration * 1000:
             self.grace_active = False
         
         #Action CD, cannot different action at same time, different CD based on last action
-        if self.action_cd_timer > 0:
-            self.action_cd_timer -= dt
+        if self.action_cd_remaining > 0:
+            self.action_cd_remaining -= dt
 
         # Absorb duration
         if self.absorb_active:
@@ -433,18 +443,15 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
         # Attack duration
         if self.attack_active:
             self.attacking()
-            self.attack_timer -= dt
-            if self.attack_timer <= 0:
-                self.attack_hitboxes.clear() # reset hitbox (also frame in case of bad timing)
-                self.attack_hitboxes_active.clear()
-                self.attack_active = False
-                self.attack_cur_frame = 0
+        else:
+            self.attack_hitboxes.clear() # reset hitbox (also frame in case of bad timing)
+            self.attack_hitboxes_active.clear()
 
     def attacking(self):
         self.attack_hitboxes = self.generate_attack_hitbox()
         if self.attack_active_frame[0] <= self.attack_cur_frame <= self.attack_active_frame[1]:
             self.attack_hitboxes_active = self.attack_hitboxes
-        else: self.attack_hitboxes_active = []
+        else: self.attack_hitboxes_active.clear()
             
     def generate_attack_hitbox(self): # generate chain hitbox trajectory
         n = 10  # more = smoother coverage
@@ -478,12 +485,12 @@ class Player(GameObject): #todo : will fix keyboard input only and fix draw atta
     def bar_indicator(self):
         # Action bar update
         self.action_bar_rectMax = pygame.Rect(0, 0, 10, 
-                                        self.rect.height / 2 * self.action_barMax)
+                                        self.rect.height / 2 * self.action_cd_barMax)
         self.action_bar_rectMax.centerx = (self.rect.right + 20) if not self.facing_right else (self.rect.left - 20) #kebalikan facing
         self.action_bar_rectMax.centery = self.rect.centery
         
         self.action_bar_rect = pygame.Rect(0, 0, self.action_bar_rectMax.width, 
-                                        self.rect.height / 2 * (self.action_barMax - self.action_cd_timer))
+                                        self.rect.height / 2 * (self.action_cd_barMax - self.action_cd_remaining))
         self.action_bar_rect.x = self.action_bar_rectMax.x
         self.action_bar_rect.bottom = self.action_bar_rectMax.bottom
 
@@ -509,7 +516,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
         self.max_hp = self.phases[self.current_phase]['max_hp']
         self.hp = self.max_hp
         self.grace_active = False
-        self.grace_time = 0
+        self.grace_timestamp = 0
         self.grace_duration = 200
         self.alive = True
 
@@ -523,7 +530,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
     def update(self, dt, player, bullet_list):
         if not self.alive: return
         
-        if self.grace_active and pygame.time.get_ticks() - self.grace_time >= self.grace_duration:
+        if self.grace_active and pygame.time.get_ticks() - self.grace_timestamp >= self.grace_duration:
             self.grace_active = False
 
         phase = self.phases[self.current_phase]
@@ -553,7 +560,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
         self.fire_timer -= dt
         if self.fire_timer <= 0:
             self.fire_timer = phase['rate']
-            if pygame.time.get_ticks() - player.grace_time >= 1000: #delay after player get hit & first spawn
+            if pygame.time.get_ticks() - player.grace_timestamp >= 1000: #delay after player get hit & first spawn
                 self.shoot(player, bullet_list, phase)
           
     def shoot(self, player, bullet_list, phase_data):
@@ -820,7 +827,7 @@ add_plat(Platform_list, x=1600, y=250)
 # ================================================ Player making ==========================================================================================================================================
 
 attack_type = {
-            "slash": {"duration": 0.25, "active_frames": (2, 6), "frame_count": 9, 'cd': 0.8, 'scale':3},
+            "slash": {"duration": 0.15, "active_frames": (2, 8), "frame_count": 9, 'cd': 0.8, 'scale':3},
             "pierce": {"duration": 0.50, "active_frames": (4, 8), "frame_count": 8,'cd': 1.2, 'scale':3},
             "spin" : {"duration": 0.70, "active_frames": (2, 10),"frame_count": 12,'cd': 1.0, 'scale':3},
         }
@@ -889,26 +896,26 @@ show_atk_hitbox = True
 show_img_rect = False
 
 clock = pygame.time.Clock()
-running = True
+time_scale = 1.0
+
 action = 0
 click_pos = None
 
-
+running = True
 # ================================================ Game loop ==========================================================================================================================================
 
 while running: 
     # dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
 
-    og_dt = clock.tick(60) / 1000  #slow mo effect when overloaded, use when having too much frame drops
+    og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
     og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
     
     fps = clock.get_fps() 
-    # scale += ((Target scale) - cur_scale) * 5 * dt for smooth time scale transition
-    time_scale = 1.0
     if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
     else: time_scale += (1.0 - time_scale) * 5 * og_dt
+    time_scale = max(0.5, min(time_scale, 1.2))
 
-    target_dt = 1 / 60  # use this or below?
+    target_dt = 1 / 60
     dt = target_dt * time_scale
     
     keys = pygame.key.get_pressed()
@@ -934,9 +941,9 @@ while running:
         for hitbox in PlayerTest.attack_hitboxes_active:
             if b and b.hp > 0 and hitbox.colliderect(b.rect):
                 if not b.grace_active:
-                    PlayerTest.action_cd_timer = max(0 , PlayerTest.action_cd_timer - PlayerTest.attack_cd/5) # lower cd if succesful attack
+                    PlayerTest.action_cd_remaining = max(0 , PlayerTest.action_cd_remaining - PlayerTest.attack_cd/5) # lower cd if succesful attack
                     b.take_damage()
-                    b.grace_time = pygame.time.get_ticks()
+                    b.grace_timestamp = pygame.time.get_ticks()
                     b.grace_active = True
         
     for p in particles[:]:
@@ -948,14 +955,14 @@ while running:
     for projectile in bullet_list[:]:
         projectile.update(dt)
 
-        #Check i-frame & kolisi
+        #Check i-frame & kolisi player
         current_radius = PlayerTest.hitbox_radius + (PlayerTest.absorb_radius if PlayerTest.absorb_active else 0) 
         if circle_collide(PlayerTest.rect.center, current_radius, projectile.rect.center, projectile.hitbox_radius):
             # Absorb
             if PlayerTest.absorb_active and not PlayerTest.is_phasing: 
                 if bullet_list: bullet_list.remove(projectile)
                 PlayerTest.phase_bar = min(2 , PlayerTest.phase_bar + 0.3)
-                PlayerTest.action_cd_timer = max(0 , PlayerTest.action_cd_timer - PlayerTest.absorb_cd/3) # Lower cd if parried
+                PlayerTest.action_cd_remaining = max(0 , PlayerTest.action_cd_remaining - PlayerTest.absorb_cd/3) # Lower cd if parried
                 spawn_particles(projectile.rect.centerx, projectile.rect.centery, CYAN2_0, 6) # Absorb Sparks
                 PlayerTest.absorb_count += 1
                 if PlayerTest.absorb_count >= 5:
@@ -968,7 +975,7 @@ while running:
             if not PlayerTest.is_phasing and not PlayerTest.grace_active: #grace_active = grace active or not
                 bullet_list.clear()
                 PlayerTest.hp -= 1
-                PlayerTest.grace_time = pygame.time.get_ticks()
+                PlayerTest.grace_timestamp = pygame.time.get_ticks()
                 PlayerTest.grace_active = True
                 shake_timer = 0.25 # Trigger Screen Shake
                 spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, RED2_0, 10)

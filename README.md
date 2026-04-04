@@ -3,6 +3,7 @@ Are you a complete masochist who likes playing Soulslike or Bullet-hell?
 But you feel like one of them isnt enough?
 
 Introducing "Maidenless Danmaku"
+Heavily inspired (kind of copied ngl) by Touhou: Hero of the ice fairy
 
 A combination of BOTH
 so you can suffer more hahajahahahja
