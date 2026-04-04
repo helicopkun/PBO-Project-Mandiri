@@ -150,19 +150,9 @@ class Player(GameObject):
         self.look_delay_timestamp = 0
         self.look_delay_duration = 0.2
         
-        self.attack_active = False
         self.attack_type = attack
         self.attack_type_data = attack_type[attack]
-        self.attack_hitboxes = [] # pathway for hitbox
-        self.attack_hitboxes_active = [] # actual hitbox
-        self.attack_duration = self.attack_type_data['duration']# Window attack
-        self.attack_cd = self.attack_type_data['cd']
-        self.attack_scale = self.attack_type_data['scale']
-        self.attack_frame_count = self.attack_type_data['frame_count'] + 1 #include 0 -> n amount instead of 0 -> n-1 frame
-        self.attack_active_frame = self.attack_type_data['active_frames']   
-        self.attack_frame_timestamp = 0
-        self.attack_cur_frame = 0
-        self.attack_image_center = self.rect.center
+        self.active_attacks = [] # stores animation for each active attack
         self.copy_rect = None #copying self old pos
           
     def update(self, keys, dt, platforms):
@@ -187,20 +177,31 @@ class Player(GameObject):
                 
             #Attack
             if (keys[pygame.K_k] or action == 1):
-                self.attack_active = True
-                self.action_cd_remaining = self.attack_cd
-                self.attack_images = [] #get image and reset if it existed
+                self.look_delay_timestamp = pygame.time.get_ticks()
+                self.action_cd_remaining = self.attack_type_data['cd']
+                attack_images = [] #get image and reset if it existed
                 offset_dist = 300
                 angle = math.radians(self.facing_angle)
-                for i in range(self.attack_frame_count):
-                    self.attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", 
+                for i in range(self.attack_type_data['frame_count']):
+                    attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", 
                                                         angle=self.facing_angle))
-                self.attack_image_center = ( # get setup pos (static pos)
+                atk_image_center = ( # get setup pos (static pos)
                     self.rect.centerx + math.cos(angle) * offset_dist,
                     self.rect.centery + math.sin(-angle) * offset_dist
                 )
                 self.copy_rect = self.rect.copy()
-                self.generate_attack_hitbox()
+                base_hitboxes = self.generate_attack_hitbox() # pathway for active hitbox
+                new_attack = { # get data for attack
+                    'type': self.attack_type,
+                    'data': self.attack_type_data,
+                    'images': attack_images,
+                    'center': atk_image_center,
+                    'hitboxes': base_hitboxes,
+                    'active_hitboxes': [],
+                    'cur_frame': 0,
+                    'frame_timestamp': 0
+                }   
+                self.active_attacks.append(new_attack)
                 
     def draw(self, surface):
         #Character
@@ -213,24 +214,23 @@ class Player(GameObject):
         if self.absorb_active:
             pygame.draw.circle(surface, self.absorb_color, self.rect.center, self.hitbox_radius + self.absorb_radius, 5)
 
-        if self.attack_active:
-            if self.attack_cur_frame < self.attack_frame_count:
-                current_img = self.attack_images[self.attack_cur_frame]
-                atk_img_rect = current_img.get_rect(center=(self.attack_image_center))
+        for atk in self.active_attacks:
+            if atk['cur_frame'] < atk['data']['frame_count']:
+                current_img = atk['images'][atk['cur_frame']]
+                atk_img_rect = current_img.get_rect(center=(atk['center']))
                 surface.blit(current_img, atk_img_rect)
                 if show_atk_hitbox:
-                    for hitbox in self.attack_hitboxes:
+                    for hitbox in atk['hitboxes']:
                         pygame.draw.rect(surface, YELLOW, hitbox, 2)
-                    for hitbox in self.attack_hitboxes_active:
+                    for hitbox in atk['active_hitboxes']:
                         pygame.draw.rect(surface, RED2_0, hitbox, 2)
 
-                frame_delay = (self.attack_duration*1000) / self.attack_frame_count 
-                if pygame.time.get_ticks() - self.attack_frame_timestamp > frame_delay:
-                    self.attack_frame_timestamp = pygame.time.get_ticks()
-                    self.attack_cur_frame += 1            
+                frame_delay = (atk['data']['duration']*1000) / atk['data']['frame_count'] # i put it here so frame 0 can still play
+                if pygame.time.get_ticks() - atk['frame_timestamp'] > frame_delay:
+                    atk['frame_timestamp'] = pygame.time.get_ticks()
+                    atk['cur_frame'] += 1            
             else:
-                self.attack_cur_frame = 0
-                self.attack_active = False
+                self.active_attacks.remove(atk)
             
         if self.action_cd_remaining > 0:
             pygame.draw.rect(surface, GREY, self.action_bar_rectMax) # BG
@@ -378,7 +378,7 @@ class Player(GameObject):
 
     def facing_indicator(self):
         #Movement facing indicator
-        if not (self.attack_active or self.absorb_active):
+        if not self.absorb_active:
             if pygame.time.get_ticks() - self.look_delay_timestamp >= self.look_delay_duration*1000: # delay
                 self.facing = 'right' if self.facing_right else 'left'
 
@@ -441,40 +441,37 @@ class Player(GameObject):
             if self.absorb_timer <= 0:
                 self.absorb_active = False
 
-        # Attack duration
-        if self.attack_active:
-            self.attacking()
-        else:
-            self.attack_hitboxes.clear() # reset hitbox (also frame in case of bad timing)
-            self.attack_hitboxes_active.clear()
+        # Attack
+        for atk in reversed(self.active_attacks): # read in reverse for safely removing atk
+            self.attacking(atk)
 
-    def attacking(self): #generate active frame hitbox
-        self.attack_hitboxes_active.clear() # Reset active hitboxes every frame
-        start_frame = self.attack_active_frame[0]
-        end_frame = self.attack_active_frame[1]
+    def attacking(self, atk): #generate active frame hitbox for specific attack
+        atk['active_hitboxes'].clear()# Reset active hitboxes every frame
+        start_frame = atk['data']['active_frames'][0]
+        end_frame = atk['data']['active_frames'][1]
 
-        if start_frame <= self.attack_cur_frame <= end_frame: #check if in the active frame window
+        if start_frame <= atk['cur_frame'] <= end_frame: #check if in the active frame window
             total_active_frames = max(1, end_frame - start_frame) # prevent division by zero
-            progress = (self.attack_cur_frame - start_frame) / total_active_frames
+            progress = (atk['cur_frame'] - start_frame) / total_active_frames
             
-            total_hitboxes = len(self.attack_hitboxes)
+            total_hitboxes = len(atk['hitboxes'])
 
-            if self.attack_type == 'slash': # --- THE SWEEP LOGIC --- Visual: {}{}[>][>]{}{} -> Sweeps across the chain
+            if atk['type'] == 'slash': # --- THE SWEEP LOGIC --- Visual: {}{}[>][>]{}{} -> Sweeps across the chain
                 current_tip = int(progress * total_hitboxes) + 3
                 hitbox_length = 4 
                 start_idx = max(0, current_tip - hitbox_length) # hitbox tail
 
-                self.attack_hitboxes_active = self.attack_hitboxes[start_idx : current_tip]
+                atk['active_hitboxes'] = atk['hitboxes'][start_idx : current_tip]
 
-            elif self.attack_type == 'pierce': # --- THE GROW LOGIC --- Visual: [>][>][>]{}{} -> Grows from base to tip
+            elif atk['type'] == 'pierce': # --- THE GROW LOGIC --- Visual: [>][>][>]{}{} -> Grows from base to tip
                 current_tip = int(progress * total_hitboxes) + 1
                 
-                self.attack_hitboxes_active = self.attack_hitboxes[:current_tip]
+                atk['active_hitboxes'] = atk['hitboxes'][:current_tip]
             
             else: # Default fallback (Spin / All at once)
-                self.attack_hitboxes_active = self.attack_hitboxes.copy()
+                atk['active_hitboxes'] = atk['hitboxes'].copy()
             
-    def generate_attack_hitbox(self): # generate chain hitbox trajectory
+    def generate_attack_hitbox(self): # generate chain hitbox trajectory, not needing atk data because only load ONCE during the trigger phase
         n = 10  # more = smoother coverage
 
         if self.attack_type == 'slash':
@@ -484,13 +481,14 @@ class Player(GameObject):
             length = 4 * self.height
             thickness = self.width
 
-        length *= self.attack_scale
-        thickness *= self.attack_scale
+        length *= self.attack_type_data['scale']
+        thickness *= self.attack_type_data['scale']
 
         angle = math.radians(self.facing_angle)
         dx = math.cos(angle)
         dy = math.sin(-angle)
 
+        hitbox_list = []
         for i in range(n): #generate n amount of hitbox on a chain hitbox, for e.g: [P]->[][][][][] <-- player's attack hitbox
             steps = i / (n + 1)
 
@@ -499,7 +497,8 @@ class Player(GameObject):
 
             rect = pygame.Rect(0, 0, thickness, thickness)
             rect.center = (x, y)
-            self.attack_hitboxes.append(rect)
+            hitbox_list.append(rect)
+        return hitbox_list
     
     def bar_indicator(self):
         # Action bar update
@@ -847,9 +846,9 @@ add_plat(Platform_list, x=1600, y=250)
 # ================================================ Player making ==========================================================================================================================================
 
 attack_type = {
-            "slash": {"duration": 5.0, "active_frames": (2, 8), "frame_count": 9, 'cd': 0.8, 'scale':3},
-            "pierce": {"duration": 0.50, "active_frames": (4, 8), "frame_count": 8,'cd': 1.2, 'scale':3},
-            "spin" : {"duration": 0.70, "active_frames": (2, 10),"frame_count": 12,'cd': 1.0, 'scale':3},
+            "slash":    {'duration': 5.00, 'active_frames': (2, 8), 'frame_count': 10, 'cd': 0.8, 'scale':3},
+            "pierce":   {'duration': 0.50, 'active_frames': (4, 8), 'frame_count': 9, 'cd': 1.2, 'scale':3},
+            "spin" :    {'duration': 0.70, 'active_frames': (2, 10),'frame_count': 13,'cd': 1.0, 'scale':3},
         }
 
 PlayerTest = Player(max_hp=15, name="HelicopKun", attack='slash')
@@ -958,13 +957,14 @@ while running:
     for b in bosses:
         b.update(dt, PlayerTest, bullet_list)
 
-        for hitbox in PlayerTest.attack_hitboxes_active:
-            if b and b.hp > 0 and hitbox.colliderect(b.rect):
-                if not b.grace_active:
-                    PlayerTest.action_cd_remaining = max(0 , PlayerTest.action_cd_remaining - PlayerTest.attack_cd/5) # lower cd if succesful attack
-                    b.take_damage()
-                    b.grace_timestamp = pygame.time.get_ticks()
-                    b.grace_active = True
+        for atk in PlayerTest.active_attacks:
+            for hitbox in atk['active_hitboxes']:
+                if b and b.hp > 0 and hitbox.colliderect(b.rect):
+                    if not b.grace_active:
+                        PlayerTest.action_cd_remaining = max(0 , PlayerTest.action_cd_remaining - PlayerTest.attack_type_data['cd']/5) # lower cd if succesful attack
+                        b.take_damage()
+                        b.grace_timestamp = pygame.time.get_ticks()
+                        b.grace_active = True
         
     for p in particles[:]:
         p.update(dt)
