@@ -6,8 +6,8 @@ import math
 pygame.init()
 pygame.font.init()
 
-WIDTH = 1600
-HEIGHT = 900
+WIDTH = 1920
+HEIGHT = 1080
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Untuk UI
 pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name for ts
@@ -131,7 +131,7 @@ class Player(GameObject):
         self.airborne_elapsed = 0
         self.current_platform = MainPlatform
         self.platform_group = None
-        self.quickfall_plat_threshold = 0.25
+        self.quickfall_plat_threshold = 0.225
         self.quickfall_plat_elapsed = 0
         self.old_bottom = self.rect.bottom
         
@@ -153,8 +153,8 @@ class Player(GameObject):
         self.attack_active = False
         self.attack_type = attack
         self.attack_type_data = attack_type[attack]
-        self.attack_hitboxes = []
-        self.attack_hitboxes_active = [] #idk if this is useful
+        self.attack_hitboxes = [] # pathway for hitbox
+        self.attack_hitboxes_active = [] # actual hitbox
         self.attack_duration = self.attack_type_data['duration']# Window attack
         self.attack_cd = self.attack_type_data['cd']
         self.attack_scale = self.attack_type_data['scale']
@@ -200,6 +200,7 @@ class Player(GameObject):
                     self.rect.centery + math.sin(-angle) * offset_dist
                 )
                 self.copy_rect = self.rect.copy()
+                self.generate_attack_hitbox()
                 
     def draw(self, surface):
         #Character
@@ -381,19 +382,19 @@ class Player(GameObject):
             if pygame.time.get_ticks() - self.look_delay_timestamp >= self.look_delay_duration*1000: # delay
                 self.facing = 'right' if self.facing_right else 'left'
 
-            if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing_right = False
             if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing_right = True
+            if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing_right = False
                 
             if keys[pygame.K_w] and not keys[pygame.K_s]: self.facing = 'up'
             if keys[pygame.K_s] and not keys[pygame.K_w]: self.facing = 'down'
 
             if self.facing == 'up': 
-                if keys[pygame.K_d]: self.facing = 'top-right'
-                if keys[pygame.K_a]: self.facing = 'top-left'
+                if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'top-right'
+                if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'top-left'
 
             if self.facing == 'down':
-                if keys[pygame.K_d]: self.facing = 'bottom-right'
-                if keys[pygame.K_a]: self.facing = 'bottom-left'
+                if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'bottom-right'
+                if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'bottom-left'
                 
         # Attack facing indicator
         if self.action_cd_remaining <= 0:
@@ -447,11 +448,31 @@ class Player(GameObject):
             self.attack_hitboxes.clear() # reset hitbox (also frame in case of bad timing)
             self.attack_hitboxes_active.clear()
 
-    def attacking(self):
-        self.attack_hitboxes = self.generate_attack_hitbox()
-        if self.attack_active_frame[0] <= self.attack_cur_frame <= self.attack_active_frame[1]:
-            self.attack_hitboxes_active = self.attack_hitboxes
-        else: self.attack_hitboxes_active.clear()
+    def attacking(self): #generate active frame hitbox
+        self.attack_hitboxes_active.clear() # Reset active hitboxes every frame
+        start_frame = self.attack_active_frame[0]
+        end_frame = self.attack_active_frame[1]
+
+        if start_frame <= self.attack_cur_frame <= end_frame: #check if in the active frame window
+            total_active_frames = max(1, end_frame - start_frame) # prevent division by zero
+            progress = (self.attack_cur_frame - start_frame) / total_active_frames
+            
+            total_hitboxes = len(self.attack_hitboxes)
+
+            if self.attack_type == 'slash': # --- THE SWEEP LOGIC --- Visual: {}{}[>][>]{}{} -> Sweeps across the chain
+                current_tip = int(progress * total_hitboxes) + 3
+                hitbox_length = 4 
+                start_idx = max(0, current_tip - hitbox_length) # hitbox tail
+
+                self.attack_hitboxes_active = self.attack_hitboxes[start_idx : current_tip]
+
+            elif self.attack_type == 'pierce': # --- THE GROW LOGIC --- Visual: [>][>][>]{}{} -> Grows from base to tip
+                current_tip = int(progress * total_hitboxes) + 1
+                
+                self.attack_hitboxes_active = self.attack_hitboxes[:current_tip]
+            
+            else: # Default fallback (Spin / All at once)
+                self.attack_hitboxes_active = self.attack_hitboxes.copy()
             
     def generate_attack_hitbox(self): # generate chain hitbox trajectory
         n = 10  # more = smoother coverage
@@ -470,7 +491,6 @@ class Player(GameObject):
         dx = math.cos(angle)
         dy = math.sin(-angle)
 
-        hitbox_list = []
         for i in range(n): #generate n amount of hitbox on a chain hitbox, for e.g: [P]->[][][][][] <-- player's attack hitbox
             steps = i / (n + 1)
 
@@ -479,8 +499,7 @@ class Player(GameObject):
 
             rect = pygame.Rect(0, 0, thickness, thickness)
             rect.center = (x, y)
-            hitbox_list.append(rect)
-        return hitbox_list
+            self.attack_hitboxes.append(rect)
     
     def bar_indicator(self):
         # Action bar update
@@ -562,7 +581,15 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
             self.fire_timer = phase['rate']
             if pygame.time.get_ticks() - player.grace_timestamp >= 1000: #delay after player get hit & first spawn
                 self.shoot(player, bullet_list, phase)
-          
+            
+    def draw(self, surface):
+        if not self.alive: return
+        color = self.phases[self.current_phase]['color']
+        if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
+            self.draw_hitcircle(surface, color, 6) #draw hitbox here is more like indicator in the middle, color for phase color
+            self.draw_hitcircle(surface, self.circle_color, 10, 3) #self.color for boss main color
+            self.draw_self(surface)
+   
     def shoot(self, player, bullet_list, phase_data):
         pattern = phase_data['pattern']
         num_bullets = phase_data['num_bullet']
@@ -642,15 +669,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
         else:
             self.max_hp = self.phases[self.current_phase]['max_hp']
             self.hp = self.max_hp
-            
-    def draw(self, surface): #hitbox
-        if not self.alive: return
-        color = self.phases[self.current_phase]['color']
-        if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
-            self.draw_hitcircle(surface, color, 6) #draw hitbox here is more like indicator in the middle, color for phase color
-            self.draw_hitcircle(surface, self.circle_color, 10, 3) #self.color for boss main color
-            self.draw_self(surface)
-            
+          
 class Bullet(GameObject):
     def __init__(self, x, y, vx, vy, hitbox_radius , color=CYAN, image="bullet-orb.png", #default
                                                                  flipx = 0, flipy = 0, angle = 0, 
@@ -668,6 +687,7 @@ class Bullet(GameObject):
     def out_of_bounds(self):
         return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > MainPlatform.rect.top or self.rect.bottom < -50
 
+# Extras for game-vfx
 class Particle:
     def __init__(self, x, y, color, is_burst=False):
         self.x = x
@@ -771,7 +791,7 @@ def generate_boss_phase(num_phases=None): # generate boss stat randomly
     max_rate = 1.0
     for phase in range(1, num_phases + 1):
         boss_phase[phase] = {
-            'max_hp': random.randint(5, 15),
+            'max_hp': random.randint(10, 25),
             'move_speed': random.randint(100, 700),
             'y_axis': random.randint(150, 600),
             'rate': random.uniform(0.2, max_rate),
@@ -827,7 +847,7 @@ add_plat(Platform_list, x=1600, y=250)
 # ================================================ Player making ==========================================================================================================================================
 
 attack_type = {
-            "slash": {"duration": 0.15, "active_frames": (2, 8), "frame_count": 9, 'cd': 0.8, 'scale':3},
+            "slash": {"duration": 5.0, "active_frames": (2, 8), "frame_count": 9, 'cd': 0.8, 'scale':3},
             "pierce": {"duration": 0.50, "active_frames": (4, 8), "frame_count": 8,'cd': 1.2, 'scale':3},
             "spin" : {"duration": 0.70, "active_frames": (2, 10),"frame_count": 12,'cd': 1.0, 'scale':3},
         }
@@ -839,35 +859,35 @@ PlayerTest = Player(max_hp=15, name="HelicopKun", attack='slash')
 
 # Enemy making - color for phase color - bullet image = 'asset/ + {bullet-orb, bullet-1, bullet-2, bullet-3} + .png'
 boss1_phase = { 
-            1: {'max_hp': 5, 'move_speed': 100, 'y_axis': 150, 'rate': 1.5, 'pattern': 'circle', 
+            1: {'max_hp': 15, 'move_speed': 100, 'y_axis': 150, 'rate': 1.5, 'pattern': 'circle', 
                 'num_bullet': 5, 'bullet_spd': 300, 'bullet_size': 10,'color': ORANGE, 'image': 'bullet-1'},
 
-            2: {'max_hp': 8, 'move_speed': 200, 'y_axis': 250, 'rate': 2, 'pattern': 'random', 
+            2: {'max_hp': 18, 'move_speed': 200, 'y_axis': 250, 'rate': 2, 'pattern': 'random', 
                 'num_bullet': 5, 'bullet_spd': 350, 'bullet_size': 8,'color': PURPLE, 'image': 'bullet-3'},
 
-            3: {'max_hp': 6, 'move_speed': 250, 'y_axis': 350, 'rate': 1.0, 'pattern': 'circle', 
+            3: {'max_hp': 16, 'move_speed': 250, 'y_axis': 350, 'rate': 1.0, 'pattern': 'circle', 
                 'num_bullet': 8, 'bullet_spd': 400, 'bullet_size': 15,'color': BLUE, 'image': 'bullet-2'},
 
-            4: {'max_hp': 4, 'move_speed': 100, 'y_axis': 400, 'rate': 0.8, 'pattern': 'fan', 
+            4: {'max_hp': 14, 'move_speed': 100, 'y_axis': 400, 'rate': 0.8, 'pattern': 'fan', 
                 'num_bullet': 7, 'bullet_spd': 400, 'bullet_size': 7,'color': CYAN, 'image': 'bullet-2'},
 
-            5: {'max_hp': 3, 'move_speed': 550, 'y_axis': 150, 'rate': 0.4, 'pattern': 'chaos', 
+            5: {'max_hp': 13, 'move_speed': 550, 'y_axis': 150, 'rate': 0.4, 'pattern': 'chaos', 
                 'num_bullet': 8, 'bullet_spd': 450, 'bullet_size': 9,'color': GOLD, 'image': 'bullet-orb'}
         }
 boss2_phase = { 
-            1: {'max_hp': 6, 'move_speed': 350, 'y_axis': 200, 'rate': 0.8, 'pattern': 'chaos', 
+            1: {'max_hp': 16, 'move_speed': 350, 'y_axis': 200, 'rate': 0.8, 'pattern': 'chaos', 
                 'num_bullet': 4, 'bullet_spd': 400, 'bullet_size': 8, 'color': ORANGE, 'image': 'bullet-3'},
 
-            2: {'max_hp': 8, 'move_speed': 100, 'y_axis': 450, 'rate': 0.5, 'pattern': 'random', 
+            2: {'max_hp': 18, 'move_speed': 100, 'y_axis': 450, 'rate': 0.5, 'pattern': 'random', 
                 'num_bullet': 3, 'bullet_spd': 300, 'bullet_size': 12, 'color': PURPLE, 'image': 'bullet-1'},
 
-            3: {'max_hp': 10, 'move_speed': 400, 'y_axis': 150, 'rate': 1.2, 'pattern': 'circle', 
+            3: {'max_hp': 20, 'move_speed': 400, 'y_axis': 150, 'rate': 1.2, 'pattern': 'circle', 
                 'num_bullet': 16, 'bullet_spd': 250, 'bullet_size': 6, 'color': BLUE, 'image': 'bullet-3'},
 
-            4: {'max_hp': 7, 'move_speed': 600, 'y_axis': 300, 'rate': 0.4, 'pattern': 'random', 
+            4: {'max_hp': 17, 'move_speed': 600, 'y_axis': 300, 'rate': 0.4, 'pattern': 'random', 
                 'num_bullet': 5, 'bullet_spd': 500, 'bullet_size': 7, 'color': CYAN, 'image': 'bullet-1'},
 
-            5: {'max_hp': 12, 'move_speed': 700, 'y_axis': 200, 'rate': 0.2, 'pattern': 'chaos', 
+            5: {'max_hp': 22, 'move_speed': 700, 'y_axis': 200, 'rate': 0.2, 'pattern': 'chaos', 
                 'num_bullet': 10, 'bullet_spd': 450, 'bullet_size': 10, 'color': GOLD, 'image': 'bullet-1'}
         }
 
