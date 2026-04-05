@@ -911,7 +911,7 @@ STAGES_ICY = {
     1: {
         "bosses": [boss1], 
         "bg": "icy_cave.png",
-        "platforms": [(150,250), (450,400), (700,100), (1100, 100), (1300,400), (1600,250)],
+        "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
         "plat_img": "platform.png",
         "main_plat_img": "mainplatform.png",
         "music": "ice_theme.mp3"
@@ -919,7 +919,7 @@ STAGES_ICY = {
     2: {
         "bosses": [boss1, boss2], 
         "bg": "icy_cave.png",
-        "platforms": [(150,250), (450,400), (700,100), (1100, 100), (1300,400), (1600,250)],
+        "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
         "plat_img": "platform.png",
         "main_plat_img": "mainplatform.png",
         "music": "ice_theme.mp3"
