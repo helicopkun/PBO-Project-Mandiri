@@ -55,7 +55,7 @@ Inspiration : Touhou: Hero of the Ice Fairy.
 
 
 
-============================================ Technical Description =====================================================================================================
+========= Technical Description ============
 
 Proyek ini dirancang dengan menerapkan prinsip Pemrograman Berorientasi Objek (OOP) sebagai fondasi utamanya dan ini adalah beberapa penjelasan singkat
 mengenai beberapa sistem game "Maidenless Danmaku":
@@ -66,7 +66,7 @@ mengenai beberapa sistem game "Maidenless Danmaku":
         Penanganan hitbox berbasis Rect (persegi) maupun Circle (lingkaran) dikelola secara terpusat dalam satu kelas.
 
         Polimorfisme: 
-        Setiap entitas mengimplementasikan logika update() dan draw() mereka sendiri, namun tetap menggunakan mesin rendering yang sama pada  world-surface.
+        Setiap entitas mengimplementasikan logika update() dan draw() mereka sendiri, namun tetap menggunakan mesin rendering yang sama pada world-surface.
 
 2. Player Feature
     Sistem Pergerakan (move):

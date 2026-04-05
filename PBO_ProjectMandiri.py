@@ -8,6 +8,7 @@ pygame.font.init()
 
 WIDTH = 1920
 HEIGHT = 1080
+GROUND_Y = HEIGHT - 250
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Untuk UI
 pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name for ts
@@ -45,9 +46,13 @@ def load_asset(image_path): #load base image into cache
 image_cache = {} 
 def get_image(image_path, rect=None, # load or make a new image in cache (into the assigned rectangle if available)
                flipx = 0, flipy = 0, angle = 0, 
-               size_offsetx = 0, size_offsety = 0): # offset for minor adjustment, not needed if image is fixed by editing
+               size_offsetx = 0, size_offsety = 0): # offset for minor adjustment, not needed if image is edited on figma
     scale = None
-    if rect: scale = (rect.width + size_offsetx, rect.height + size_offsety)
+    if rect: 
+        scale = (rect.width + size_offsetx, rect.height + size_offsety) #size based on rect
+    elif size_offsetx or size_offsety: 
+        scale = (size_offsetx, size_offsety) # size only
+
     key = (image_path, scale, flipx, flipy, angle)
  
     if key not in image_cache:
@@ -62,7 +67,7 @@ def get_image(image_path, rect=None, # load or make a new image in cache (into t
 # ================================================= Class =========================================================================================================================================
 
 class GameObject: #Combination of Circle and Rect hitbox, based on usage (finished?) todo: will probably change if needed
-    def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 10, 
+    def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 15, 
                                                             image_path = None,
                                                             flipx = 0, flipy = 0, angle = 0, 
                                                             size_offsetx = 0, size_offsety = 0):
@@ -74,7 +79,7 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
         
         self.image_path = image_path
         self.image = None
-        #use local variable for load for one time use
+        
         if self.image_path: self.image = get_image(image_path, self.rect, flipx, flipy, angle, size_offsetx, size_offsety)
         
     def draw_self(self, surface):
@@ -90,7 +95,7 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
 
 class Player(GameObject):
     def __init__(self, max_hp=5, name = "Baka", image = "cirno.png", attack = 'slash'):
-        super().__init__(x= 50, y=MainPlatform.rect.top - 50, width=50, height=100, hitbox_radius=15,
+        super().__init__(x= 50, y=GROUND_Y-50, width=50, height=100, hitbox_radius=15,
                          image_path="character/"+image, size_offsetx=70, size_offsety=30)
         # If value = None, 0, T|F, Rect, string  -> will be used as referenced var, 
         # else -> only for character stats (for easier scaling), duration is scaled on seconds
@@ -129,7 +134,7 @@ class Player(GameObject):
         self.jump_recovery_elapsed = 0
         self.airborne_threshold = 0.1 # airborne duration 
         self.airborne_elapsed = 0
-        self.current_platform = MainPlatform
+        self.current_platform = None
         self.platform_group = None
         self.quickfall_plat_threshold = 0.225
         self.quickfall_plat_elapsed = 0
@@ -147,61 +152,29 @@ class Player(GameObject):
         self.facing = 'right'
         self.facing_angle = 0
         self.facing_right = True
-        self.look_delay_timestamp = 0
-        self.look_delay_duration = 0.2
+        self.look_attack_timestamp = 0
+        self.look_jump_timestamp = 0
         
         self.attack_type = attack
         self.attack_type_data = attack_type[attack]
-        self.active_attacks = [] # stores animation for each active attack
+        self.active_attacks = []
         self.copy_rect = None #copying self old pos
           
-    def update(self, keys, dt, platforms):
+    def update(self, keys, click_state, dt, platforms):
         self.platform_group = platforms
         
-        #Movement - freeze when absorbing
+        # Movement - freeze when absorbing
         if not self.absorb_active:
             self.move(keys, dt) 
         
         self.current_state()
 
-        self.facing_indicator()
+        self.facing_indicator(keys, click_state)
         self.bar_indicator()
         
-        # ======= Actions =======
+        # Actions
         if not (self.is_phasing or self.action_cd_remaining > 0 or self.grace_active):
-            #Absorb
-            if (keys[pygame.K_l] or action == 3):                                            
-                self.absorb_active = True
-                self.absorb_timer = self.absorb_duration
-                self.action_cd_remaining = self.absorb_cd
-                
-            #Attack
-            if (keys[pygame.K_k] or action == 1):
-                self.look_delay_timestamp = pygame.time.get_ticks()
-                self.action_cd_remaining = self.attack_type_data['cd']
-                attack_images = [] #get image and reset if it existed
-                offset_dist = 300
-                angle = math.radians(self.facing_angle)
-                for i in range(self.attack_type_data['frame_count']):
-                    attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", 
-                                                        angle=self.facing_angle))
-                atk_image_center = ( # get setup pos (static pos)
-                    self.rect.centerx + math.cos(angle) * offset_dist,
-                    self.rect.centery + math.sin(-angle) * offset_dist
-                )
-                self.copy_rect = self.rect.copy()
-                base_hitboxes = self.generate_attack_hitbox() # pathway for active hitbox
-                new_attack = { # get data for attack
-                    'type': self.attack_type,
-                    'data': self.attack_type_data,
-                    'images': attack_images,
-                    'center': atk_image_center,
-                    'hitboxes': base_hitboxes,
-                    'active_hitboxes': [],
-                    'cur_frame': 0,
-                    'frame_timestamp': 0
-                }   
-                self.active_attacks.append(new_attack)
+            self.actions(keys, click_state)
                 
     def draw(self, surface):
         #Character
@@ -215,7 +188,8 @@ class Player(GameObject):
             pygame.draw.circle(surface, self.absorb_color, self.rect.center, self.hitbox_radius + self.absorb_radius, 5)
 
         for atk in self.active_attacks:
-            if atk['cur_frame'] < atk['data']['frame_count']:
+            atk_type = atk['type_data']
+            if atk['cur_frame'] < atk_type['frame_count']:
                 current_img = atk['images'][atk['cur_frame']]
                 atk_img_rect = current_img.get_rect(center=(atk['center']))
                 surface.blit(current_img, atk_img_rect)
@@ -225,7 +199,7 @@ class Player(GameObject):
                     for hitbox in atk['active_hitboxes']:
                         pygame.draw.rect(surface, RED2_0, hitbox, 2)
 
-                frame_delay = (atk['data']['duration']*1000) / atk['data']['frame_count'] # i put it here so frame 0 can still play
+                frame_delay = (atk_type['duration']*1000) / atk_type['frame_count'] # i put it here so frame 0 can still play
                 if pygame.time.get_ticks() - atk['frame_timestamp'] > frame_delay:
                     atk['frame_timestamp'] = pygame.time.get_ticks()
                     atk['cur_frame'] += 1            
@@ -271,24 +245,94 @@ class Player(GameObject):
             pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.bottom + 10),
                                             get_end_pos(self.rect.right + 10, self.rect.bottom + 10, 45, line_length), line_width)
 
+    def take_damage(self):
+        self.hp -= 1
+        self.grace_timestamp = pygame.time.get_ticks()
+        self.grace_active = True
+        spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, 10)
+
+    def actions(self, keys, click_state):
+        #Absorb
+        if (keys[pygame.K_l] or click_state['right']):                                            
+            self.absorb_active = True
+            self.absorb_timer = self.absorb_duration
+            self.action_cd_remaining = self.absorb_cd
+            
+        #Attack
+        if (keys[pygame.K_k] or click_state['left']):
+            self.look_attack_timestamp = pygame.time.get_ticks()
+            self.action_cd_remaining = self.attack_type_data['cd']
+            attack_images = [] #get image and reset if it existed
+            offset_dist = 300
+            angle = math.radians(self.facing_angle)
+            for i in range(self.attack_type_data['frame_count']):
+                attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", 
+                                                    angle=self.facing_angle))
+            atk_image_center = ( # get setup pos (static pos)
+                self.rect.centerx + math.cos(angle) * offset_dist,
+                self.rect.centery + math.sin(-angle) * offset_dist
+            )
+            self.copy_rect = self.rect.copy()
+            base_hitboxes = self.generate_attack_hitbox() # pathway for active hitbox
+            new_attack = { # get data for attack
+                'type': self.attack_type,
+                'type_data': self.attack_type_data,
+                'images': attack_images,
+                'center': atk_image_center,
+                'hitboxes': base_hitboxes,
+                'active_hitboxes': [],
+                'target': {}, # add enemy: tick, enemy for checking 
+                'cur_frame': 0,
+                'frame_timestamp': 0
+            }   
+            self.active_attacks.append(new_attack)
+
+    def absorbed(self, bullet): #succesful absorb
+        self.phase_bar = min(2 , self.phase_bar + 0.3)
+        self.action_cd_remaining = max(0 , self.action_cd_remaining - self.absorb_cd/3) # Lower cd if parried
+        spawn_particles(bullet.rect.centerx, bullet.rect.centery, CYAN2_0, 6) # Absorb Sparks
+        self.absorb_count += 1
+        if self.absorb_count >= 5:
+            self.hp = min(self.hp + 1, self.max_hp)
+            self.absorb_count = 0
+            spawn_particles(self.rect.centerx, self.rect.centery, GREEN, 15) # Heal Sparks
+
+    def attacked(self, enemy, atk): #succesful attack, atk = general data of attack , atk_type = specific (slash, pierce, etc..)
+        if enemy.hp <= 0 or enemy.grace_active:
+            return
+        
+        atk_type = atk['type_data']
+        
+        if atk_type['damage_tick'] == 'single': # hit once after colision
+            if enemy in atk['target']:
+                return 
+            atk['target'][enemy] = -1 #just assign random integer 
+            self.action_cd_remaining = max(0 , self.action_cd_remaining - atk_type['cd']/5) # lower cd if succesful single-hit attack
+
+
+        tick = 0.15
+        if atk_type['damage_tick'] == 'multi': # hit every tick-rate per colision
+            if enemy in atk['target'] and atk['target'][enemy] > 0:
+                return
+            atk['target'][enemy] = tick
+        
+        enemy.take_damage(atk_type['damage'])
+
     def on_platform(self):
         for platform in self.platform_group:
             if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right: # ketika ujung player memasuki area platform
                 if self.rect.bottom >= platform.rect.top and self.old_bottom <= platform.rect.top + 5:
                     self.current_platform = platform
                     return True
-        self.current_platform = MainPlatform
+        self.current_platform = None
         return False
     
     def move(self, keys, dt):
         on_plat = self.on_platform() #cache on_plat if dont need to check all the time
         self.old_bottom = self.rect.bottom # save old footing
-
-        if keys[pygame.K_w]: # set delay timer after look up (or down too? if i wanna)
-            self.look_delay_timestamp = pygame.time.get_ticks()
             
         #Phasing movement
-        if keys[pygame.K_LSHIFT] and self.action_cd_remaining <= 0:
+        if keys[pygame.K_LSHIFT] and self.action_cd_remaining <= 0 and not self.grace_active:
             if self.phase_bar > 0:
                 self.phase_bar -= dt
                 self.hitbox_radius = 0
@@ -323,7 +367,7 @@ class Player(GameObject):
             
             self.rect.centery += dy * self.speedY * dt * self.phase_speed
             self.rect.top = max(0, self.rect.top)
-            self.rect.bottom = min(MainPlatform.rect.top, self.rect.bottom)
+            self.rect.bottom = min(GROUND_Y, self.rect.bottom)
             
             return #agar tidak double dari movement biasa 
 
@@ -344,7 +388,7 @@ class Player(GameObject):
             if self.on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
                 self.rect.bottom = self.current_platform.rect.top #clamp to cur plat
             else:
-                self.rect.bottom = min(MainPlatform.rect.top, self.rect.bottom)
+                self.rect.bottom = min(GROUND_Y, self.rect.bottom)
 
         if keys[pygame.K_s] and self.on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
         else :                                      self.quickfall_plat_elapsed = 0
@@ -374,33 +418,38 @@ class Player(GameObject):
             if self.airborne_elapsed > self.airborne_threshold: #stop airborne if airborne_elapsed = max
                 slowing = self.gravity/2 if keys[pygame.K_w] else 0 
                 self.rect.centery += (self.gravity - slowing) * dt
-                self.rect.bottom = min(MainPlatform.rect.top, self.rect.bottom)
+                self.rect.bottom = min(GROUND_Y, self.rect.bottom)
 
-    def facing_indicator(self):
+    def facing_indicator(self, keys, click_state):
         #Movement facing indicator
         if not self.absorb_active:
-            if pygame.time.get_ticks() - self.look_delay_timestamp >= self.look_delay_duration*1000: # delay
-                self.facing = 'right' if self.facing_right else 'left'
-
-            if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing_right = True
-            if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing_right = False
+            if pygame.time.get_ticks() - self.look_attack_timestamp >= 400: # only works after for when just launching attack
                 
-            if keys[pygame.K_w] and not keys[pygame.K_s]: self.facing = 'up'
-            if keys[pygame.K_s] and not keys[pygame.K_w]: self.facing = 'down'
+                if keys[pygame.K_w]: # set delay timer after look up (or down too? if i wanna)
+                    self.look_jump_timestamp = pygame.time.get_ticks()
+                        
+                if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing_right = True 
+                if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing_right = False
 
-            if self.facing == 'up': 
-                if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'top-right'
-                if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'top-left'
+                if keys[pygame.K_w] and not keys[pygame.K_s]: self.facing = 'up'
+                if keys[pygame.K_s] and not keys[pygame.K_w]: self.facing = 'down'
 
-            if self.facing == 'down':
-                if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'bottom-right'
-                if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'bottom-left'
+                if self.facing == 'up': 
+                    if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'top-right'
+                    if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'top-left'
+
+                if self.facing == 'down':
+                    if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'bottom-right'
+                    if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'bottom-left'
+                
+                if pygame.time.get_ticks() - self.look_jump_timestamp >= 200: # delay after jump
+                    self.facing = 'right' if self.facing_right else 'left'
                 
         # Attack facing indicator
         if self.action_cd_remaining <= 0:
             direction = ['right', 'top-right', 'up', 'top-left', 'left', 'bottom-left', 'down', 'bottom-right']
-            if action == 1:
-                mx , my = click_pos
+            if click_state['left']:
+                mx , my = click_state['pos']
                 dx = mx - self.rect.centerx
                 dy = my - self.rect.centery
 
@@ -421,6 +470,10 @@ class Player(GameObject):
                 for i in range(8):
                     if self.facing == direction[i]:
                         self.facing_angle = i * 45
+
+        # Char facing for direction
+        if self.facing in {'right', 'top-right', 'bottom-right'}: self.facing_right = True
+        if self.facing in {'left', 'top-left', 'bottom-left'}: self.facing_right = False
 
     def current_state(self): #Update cooldown, grace, duration
         #Check phasing for hitbox radius
@@ -447,25 +500,22 @@ class Player(GameObject):
 
     def attacking(self, atk): #generate active frame hitbox for specific attack
         atk['active_hitboxes'].clear()# Reset active hitboxes every frame
-        start_frame = atk['data']['active_frames'][0]
-        end_frame = atk['data']['active_frames'][1]
+        start_frame = atk['type_data']['active_frames'][0]
+        end_frame = atk['type_data']['active_frames'][1]
 
         if start_frame <= atk['cur_frame'] <= end_frame: #check if in the active frame window
             total_active_frames = max(1, end_frame - start_frame) # prevent division by zero
             progress = (atk['cur_frame'] - start_frame) / total_active_frames
-            
             total_hitboxes = len(atk['hitboxes'])
 
             if atk['type'] == 'slash': # --- THE SWEEP LOGIC --- Visual: {}{}[>][>]{}{} -> Sweeps across the chain
                 current_tip = int(progress * total_hitboxes) + 3
                 hitbox_length = 4 
                 start_idx = max(0, current_tip - hitbox_length) # hitbox tail
-
                 atk['active_hitboxes'] = atk['hitboxes'][start_idx : current_tip]
 
             elif atk['type'] == 'pierce': # --- THE GROW LOGIC --- Visual: [>][>][>]{}{} -> Grows from base to tip
                 current_tip = int(progress * total_hitboxes) + 1
-                
                 atk['active_hitboxes'] = atk['hitboxes'][:current_tip]
             
             else: # Default fallback (Spin / All at once)
@@ -533,6 +583,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
         self.circle_color = circle_color
         self.max_hp = self.phases[self.current_phase]['max_hp']
         self.hp = self.max_hp
+        self.hit_tick = 0
         self.grace_active = False
         self.grace_timestamp = 0
         self.grace_duration = 200
@@ -548,6 +599,8 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
     def update(self, dt, player, bullet_list):
         if not self.alive: return
         
+        if self.hit_tick > 0: self.hit_tick -= dt
+
         if self.grace_active and pygame.time.get_ticks() - self.grace_timestamp >= self.grace_duration:
             self.grace_active = False
 
@@ -642,29 +695,32 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
                     by = random.uniform(150, 300) 
                 elif side == 'right': # Move left
                     cx = WIDTH + 20
-                    cy = random.randint(0, MainPlatform.rect.top)
+                    cy = random.randint(0, GROUND_Y)
                     bx = random.uniform(-300, -150) 
                     by = random.uniform(-50, 50)
                 else: # left # Move right
                     cx = -20
-                    cy = random.randint(0, MainPlatform.rect.top)
+                    cy = random.randint(0, GROUND_Y)
                     bx = random.uniform(150, 300) 
                     by = random.uniform(-50, 50)
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
                 bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
                 
-    def take_damage(self):
-        self.hp -= 1
+    def take_damage(self, atk_dmg):
+        self.hp -= atk_dmg
+        self.grace_timestamp = pygame.time.get_ticks()
+        self.grace_active = True
         spawn_particles(self.rect.centerx, self.rect.centery, color=RED2_0, count=10) # Hit feedback
         if self.hp <= 0:
             self.current_phase += 1
             self.change_phase()
             
     def change_phase(self):
-        spawn_particles(self.rect.centerx, self.rect.centery, color=CYAN, count=30, is_burst=True) # Trigger massive death particle burst each transition 
+        spawn_particles(self.rect.centerx, self.rect.centery, color=RED, count=30, is_burst=True) # Trigger massive death particle burst each transition 
         if self.current_phase > self.total_phases:
-            self.alive = False # Boss defeated!
+            self.alive = False
+            spawn_particles(self.rect.centerx, self.rect.centery, color=RED2_0, count=50, is_burst=True)
         else:
             self.max_hp = self.phases[self.current_phase]['max_hp']
             self.hp = self.max_hp
@@ -684,9 +740,9 @@ class Bullet(GameObject):
         self.rect.centery += self.vy * dt
         
     def out_of_bounds(self):
-        return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > MainPlatform.rect.top or self.rect.bottom < -50
+        return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > HEIGHT or self.rect.bottom < -50
 
-# Extras for game-vfx
+#VFX
 class Particle:
     def __init__(self, x, y, color, is_burst=False):
         self.x = x
@@ -711,148 +767,101 @@ class Particle:
             current_size = max(0.1, self.size * (self.lifetime / self.max_lifetime)) # Slowly shrink
             pygame.draw.rect(surface, self.color, (self.x, self.y, current_size, current_size))
 
+# Stage (Total arena)
+# Arena (Current stage)
+class StageManager:
+    def __init__(self, stages_data):
+        self.finished = False
 
-# ================================================ Functions ==========================================================================================================================================
+        self.stages_data = stages_data
+        self.total_stage = len(stages_data)
+        self.stage_counter = 1
+        self.bg = None
+        self.plat_list = []
+        self.boss_list = []
+        self.bullet_list = []
 
-def get_end_pos(x, y, angle, length): # for line might delete later, after getting a texture for facing indicator
-    end_x = x + length * math.cos(angle)
-    end_y = y + length * math.sin(angle)
-    return (end_x, end_y)
+    def load_stage(self):
+        cur_stage = self.stages_data[self.stage_counter]
 
-def circle_collide(c1_pos, r1, c2_pos, r2):
-    dx = c1_pos[0] - c2_pos[0] 
-    dy = c1_pos[1] - c2_pos[1]
+        bg = "background/" + cur_stage['bg']
+        self.bg = get_image(bg, size_offsetx=WIDTH, size_offsety=HEIGHT)
+
+        main_plat_img = "platform/" + cur_stage['main_plat_img']
+        MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path=main_plat_img,
+                                                                size_offsety=1000)
+
+        MainPlatform.rect.top = GROUND_Y
+
+        self.plat_list = [MainPlatform]
+        plat_img = cur_stage['plat_img']
+        for xy in cur_stage['platforms']:
+            self.add_plat(xy, plat_img)
+
+        if cur_stage['bosses'] == 'random': 
+            self.boss_list = self.generate_random_boss()
+        else: 
+            self.boss_list = cur_stage['bosses']
+        
+    def change_stage(self):
+        self.stage_counter += 1
+        if self.stage_counter > self.total_stage:
+            self.finished = True
+            print("you win")
+            return
+        else:
+            print(f"Next stage\n Stage {self.stage_counter}")
+            self.load_stage()
+
+    def add_plat(self, coordinate, image="platform.png"):
+        plat_size_offsetx=65
+        plat_size_offsety=250
+        image = "platform/" + image
+        self.plat_list.append(GameObject(coordinate[0] , (GROUND_Y - coordinate[1]), 500, image_path=image, 
+                                         size_offsetx=plat_size_offsetx, size_offsety=plat_size_offsety))
     
-    return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
+    def generate_boss_phase(self, num_phases=None): # generate boss stat randomly
+        if num_phases is None:
+            num_phases = random.randint(2, 5)  # random amount of phases
 
-def draw_ui(surface, player, boss_list):
-    # Player UI
-    p_text = UI_FONT.render(player.name.upper(), True, (192, 253, 253))
-    surface.blit(p_text, (20, HEIGHT - font_size - 10))
-    # HP Bar
-    hp_gap = 1/player.max_hp * 420
-    player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
-    image = get_image("ui/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
-    pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
-    if player.grace_active: 
-        # pygame.draw.rect(surface, RED, (102 + hp_gap/2, HEIGHT - font_size - 40, player.hp/player.max_hp * 400, 25)) #grace hp = almost last hit
-        pygame.draw.rect(surface, RED, (102 + hp_gap, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25)) #grace hp
+        boss_phase = {}
 
-    pygame.draw.rect(surface, GREEN, (102, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25))
+        patterns = ['circle', 'chaos', 'random', 'fan']
+        images = ['bullet-1', 'bullet-2', 'bullet-3', 'bullet-orb']
+        colors = [ORANGE, PURPLE, BLUE, CYAN, GOLD]
+        max_bullet = 7
+        max_rate = 1.0
+        for phase in range(1, num_phases + 1):
+            boss_phase[phase] = {
+                'max_hp': random.randint(10, 25),
+                'move_speed': random.randint(100, 700),
+                'y_axis': random.randint(150, 600),
+                'rate': random.uniform(0.2, max_rate),
+                'pattern': random.choice(patterns),
 
-    surface.blit(image, player_hp_bar_rect)
-    
-    # Absorb/Heal tracking
-    absorb_txt = UI_FONT.render(f"Baka Stack: {player.absorb_count}/5", True, CYAN, (250,250,250))
-    surface.blit(absorb_txt, (400, HEIGHT - font_size - 10))
-    
-    # Boss UI
-    boss_counter = 0
-    offset = -80
-    for b in boss_list:
-        if b:
-            b_text = UI_FONT.render(f"{b.name} (Phase {min(b.current_phase, b.total_phases)}/{b.total_phases})", True, 
-                                    WHITE if b.alive else RED2_0)
-            b_rect = b_text.get_rect(topright=(WIDTH - 20, HEIGHT - font_size - 65 + offset * boss_counter))
-            
-            surface.blit(b_text, b_rect)
-            
-            bar_widthMax = 300
-            bar_width = b.hp / b.max_hp * bar_widthMax
-            bar_x = WIDTH - 20 - bar_widthMax
-            pygame.draw.rect(surface, RED2_0, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20))
-            pygame.draw.rect(surface, b.phases[min(b.current_phase, b.total_phases)]['color'], 
-                            (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_width, 20))
-            pygame.draw.rect(surface, WHITE, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20), 2)
-            pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - font_size - 20 + offset * boss_counter,
-                                                                 20, 20))
-            boss_counter += 1
+                'num_bullet': random.randint(3, max_bullet),
+                'bullet_spd': random.randint(200, 500),
+                'bullet_size': random.randint(5, 12),
 
-def spawn_particles(x, y, color, count=5, is_burst=False):
-    for i in range(count):
-        particles.append(Particle(x, y, color, is_burst))
+                'color': random.choice(colors),
+                'image': random.choice(images)
+            }
+            colors.remove(boss_phase[phase]['color'])
 
-def add_plat(plat_list, x, y, w=500, image="platform/platform.png"):
-    plat_list.append(GameObject(x , (HEIGHT - y - 150), w, 15, image_path=image,
-                                size_offsetx=plat_size_offsetx,
-                                size_offsety=plat_size_offsety))
+        return boss_phase
 
-def generate_boss_phase(num_phases=None): # generate boss stat randomly
-    if num_phases is None:
-        num_phases = random.randint(2, 5)  # random amount of phases
-
-    boss_phase = {}
-
-    patterns = ['circle', 'chaos', 'random', 'fan']
-    images = ['bullet-1', 'bullet-2', 'bullet-3', 'bullet-orb']
-    colors = [ORANGE, PURPLE, BLUE, CYAN, GOLD]
-    max_bullet = 7
-    max_rate = 1.0
-    for phase in range(1, num_phases + 1):
-        boss_phase[phase] = {
-            'max_hp': random.randint(10, 25),
-            'move_speed': random.randint(100, 700),
-            'y_axis': random.randint(150, 600),
-            'rate': random.uniform(0.2, max_rate),
-            'pattern': random.choice(patterns),
-
-            'num_bullet': random.randint(3, max_bullet),
-            'bullet_spd': random.randint(200, 500),
-            'bullet_size': random.randint(5, 12),
-
-            'color': random.choice(colors),
-            'image': random.choice(images)
-        }
-        colors.remove(boss_phase[phase]['color'])
-
-    return boss_phase
-
-def generate_random_boss(amount = 3):
-    circle_color_list = [RED, GREEN, YELLOW, BLACK, WHITE]
-    for i in range(min(5, amount)): #generate 3 boss, 5 is already too much man
-        size = random.randint(100, 200)
-        start_x = random.uniform(100, WIDTH - 100)
-        direction=random.choice([1 , -1])
-        circle_color = random.choice(circle_color_list)
-        boss = Boss(f"Boss {i+1}", generate_boss_phase(), size, size, start_x, direction, circle_color)
-        circle_color_list.remove(circle_color)
-        bosses.append(boss)
-
-
-# ================================================ Platform making ==========================================================================================================================================
-
-bg = "icy_cave"
-background_image = pygame.image.load('assets/background/' + bg + '.png')
-background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
-
-MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="platform/mainplatform.png",
-                                                        size_offsety=1200)
-#Platform image offset
-plat_size_offsetx=65 
-plat_size_offsety=250
-plat_pos_offsetx=30
-plat_pos_offsety=125
-
-Platform_list = [MainPlatform]
-# Stage (unused idea for now)
-add_plat(Platform_list, x=150, y=250)
-add_plat(Platform_list, x=450, y=400)
-add_plat(Platform_list, x=700, y=100)
-add_plat(Platform_list, x=1100, y=100)
-add_plat(Platform_list, x=1300, y=400)
-add_plat(Platform_list, x=1600, y=250)
-
-
-# ================================================ Player making ==========================================================================================================================================
-
-attack_type = {
-            "slash":    {'duration': 5.00, 'active_frames': (2, 8), 'frame_count': 10, 'cd': 0.8, 'scale':3},
-            "pierce":   {'duration': 0.50, 'active_frames': (4, 8), 'frame_count': 9, 'cd': 1.2, 'scale':3},
-            "spin" :    {'duration': 0.70, 'active_frames': (2, 10),'frame_count': 13,'cd': 1.0, 'scale':3},
-        }
-
-PlayerTest = Player(max_hp=15, name="HelicopKun", attack='slash')
-
+    def generate_random_boss(self):
+        circle_color_list = [RED, GREEN, YELLOW, BLACK, WHITE]
+        boss_list = []
+        for i in range(random.randint(1,3)): #generate 3 boss, 3 is already too much man
+            size = random.randint(100, 200)
+            start_x = random.uniform(100, WIDTH - 100)
+            direction=random.choice([1 , -1])
+            circle_color = random.choice(circle_color_list)
+            boss = Boss(f"Boss {i+1}", self.generate_boss_phase(), size, size, start_x, direction, circle_color)
+            circle_color_list.remove(circle_color)
+            boss_list.append(boss)
+        return boss_list
 
 # ================================================ Enemy making - manual ==========================================================================================================================================
 
@@ -893,15 +902,118 @@ boss2_phase = {
 boss1 = Boss("Cubecicle", boss2_phase, w=100, h=100, start_x=random.uniform(100, WIDTH - 100), direction=random.choice([1 , -1]), circle_color=CYAN)
 boss2 = Boss("And more..", boss1_phase, w=140, h=140, start_x=random.uniform(100, WIDTH - 100), direction=random.choice([1 , -1]), circle_color=CYAN2_0)
 
-# just append boss_list later or declare boss_list = [boss1,etc]
-# bosses = [boss1, boss2]
 
+
+
+# ================================================ Stage making ==========================================================================================================================================
+
+STAGES_ICY = {
+    1: {
+        "bosses": [boss1], 
+        "bg": "icy_cave.png",
+        "platforms": [(150,250), (450,400), (700,100), (1100, 100), (1300,400), (1600,250)],
+        "plat_img": "platform.png",
+        "main_plat_img": "mainplatform.png",
+        "music": "ice_theme.mp3"
+    },
+    2: {
+        "bosses": [boss1, boss2], 
+        "bg": "icy_cave.png",
+        "platforms": [(150,250), (450,400), (700,100), (1100, 100), (1300,400), (1600,250)],
+        "plat_img": "platform.png",
+        "main_plat_img": "mainplatform.png",
+        "music": "ice_theme.mp3"
+    },
+}
+
+bg = "icy_cave"
+background_image = pygame.image.load('assets/background/' + bg + '.png')
+background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
+
+MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="platform/mainplatform.png",
+                                                        size_offsety=1000)
+
+MainPlatform.rect.top = GROUND_Y
+
+
+# ================================================ Player making ==========================================================================================================================================
+
+attack_type = {
+            "slash":    {'damage': 2.5, 'damage_tick': 'single', 'duration': 0.3, 'active_frames': (2, 8), 'frame_count': 10, 'cd': 0.8, 'scale':3},
+            "pierce":   {'damage': 3.0, 'damage_tick': 'single', 'duration': 0.50, 'active_frames': (4, 8), 'frame_count': 9, 'cd': 1.2, 'scale':3},
+            "spin" :    {'damage': 0.5, 'damage_tick': 'multi','duration': 0.70, 'active_frames': (2, 10),'frame_count': 13,'cd': 1.0, 'scale':3},
+        }
+
+PlayerTest = Player(max_hp=15, name="HelicopKun", attack='slash')
+#might do hotbar inventory-based attacks 1.slash, 2.Pierce, 3...
+
+
+# ================================================ Functions ==========================================================================================================================================
+
+def get_end_pos(x, y, angle, length): # for line might delete later, after getting a texture for facing indicator
+    end_x = x + length * math.cos(angle)
+    end_y = y + length * math.sin(angle)
+    return (end_x, end_y)
+
+def circle_collide(c1_pos, r1, c2_pos, r2):
+    dx = c1_pos[0] - c2_pos[0] 
+    dy = c1_pos[1] - c2_pos[1]
+    
+    return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
+
+def draw_ui(surface, player, boss_list):
+    # Player UI
+    p_text = UI_FONT.render(player.name.upper(), True, (192, 253, 253))
+    surface.blit(p_text, (20, HEIGHT - font_size - 10))
+    # HP Bar
+    hp_gap = 1/player.max_hp * 420
+    player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
+    image = get_image("ui/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
+    pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
+    if player.grace_active: 
+        # pygame.draw.rect(surface, RED, (102 + hp_gap/2, HEIGHT - font_size - 40, player.hp/player.max_hp * 400, 25)) #grace hp = almost last hit
+        pygame.draw.rect(surface, RED, (102 + hp_gap, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25)) #grace hp
+
+    pygame.draw.rect(surface, GREEN, (102, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25))
+
+    surface.blit(image, player_hp_bar_rect)
+    
+    # Absorb/Heal tracking
+    absorb_txt = UI_FONT.render(f"Baka Stack: {player.absorb_count}/5", True, CYAN, (250,250,250))
+    surface.blit(absorb_txt, (400, HEIGHT - font_size - 10))
+    
+    # Boss UI
+    boss_counter = 0
+    offset = -80
+    for b in reversed(boss_list): #read in reverse, so boss1 on top of boss2
+        if b:
+            b_text = UI_FONT.render(f"{b.name} (Phase {min(b.current_phase, b.total_phases)}/{b.total_phases})", True, 
+                                    WHITE if b.alive else RED2_0)
+            b_rect = b_text.get_rect(topright=(WIDTH - 20, HEIGHT - font_size - 65 + offset * boss_counter))
+            
+            surface.blit(b_text, b_rect)
+            
+            bar_widthMax = 300
+            bar_width = b.hp / b.max_hp * bar_widthMax
+            bar_x = WIDTH - 20 - bar_widthMax
+            pygame.draw.rect(surface, RED2_0, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20))
+            pygame.draw.rect(surface, b.phases[min(b.current_phase, b.total_phases)]['color'], 
+                            (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_width, 20))
+            pygame.draw.rect(surface, WHITE, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20), 2)
+            pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - font_size - 20 + offset * boss_counter,
+                                                                 20, 20))
+            boss_counter += 1
+
+def spawn_particles(x, y, color, count=5, is_burst=False):
+    for i in range(count):
+        particles.append(Particle(x, y, color, is_burst))
+particles = []
 
 # ================================================ Game loop setup ==========================================================================================================================================
 
-bullet_list = [] 
-bosses = []
-particles = []
+
+stage = StageManager(STAGES_ICY)
+stage.load_stage()
 
 # Screen Shake Variables
 shake_timer = 0
@@ -911,102 +1023,97 @@ world_surface = pygame.Surface((WIDTH, HEIGHT))
 show_hitbox = False
 show_player_hitbox = False
 show_bullet_hitbox = False
-show_atk_hitbox = True
+show_atk_hitbox = False
 show_img_rect = False
 
 clock = pygame.time.Clock()
-time_scale = 1.0
-
-action = 0
-click_pos = None
+# time_scale = 1.0
 
 running = True
 # ================================================ Game loop ==========================================================================================================================================
 
 while running: 
-    # dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
+    dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
 
-    og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
-    og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
+    # og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
+    # og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
     
-    fps = clock.get_fps() 
-    if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
-    else: time_scale += (1.0 - time_scale) * 5 * og_dt
-    time_scale = max(0.5, min(time_scale, 1.2))
+    # fps = clock.get_fps() 
+    # if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
+    # else: time_scale += (1.0 - time_scale) * 5 * og_dt
+    # time_scale = max(0.5, min(time_scale, 1.2))
 
-    target_dt = 1 / 60
-    dt = target_dt * time_scale
+    # target_dt = 1 / 60
+    # dt = target_dt * time_scale
     
-    keys = pygame.key.get_pressed()
-    action = 0
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1: 
-                action = 1 #mouse leftclick
-                click_pos = event.pos 
-            if event.button == 3: action = 3 #mouse rightclick 
-        if event.type == pygame.MOUSEBUTTONUP:
-            action = 0
+
+
+    keys = pygame.key.get_pressed()
+
+    click_state = {
+        'left': False,
+        'right': False,
+        'pos': None
+    }
+
+    mouse_buttons = pygame.mouse.get_pressed()
+    mouse_pos = pygame.mouse.get_pos()
+
+    click_state['left'] = mouse_buttons[0]
+    click_state['right'] = mouse_buttons[2]
+    click_state['pos'] = mouse_pos
+        
 
     # Update Entities
-    PlayerTest.update(keys, dt, Platform_list)
-    action = 0 #reset action
+    PlayerTest.update(keys, click_state, dt, stage.plat_list)
 
-    for b in bosses:
-        b.update(dt, PlayerTest, bullet_list)
+    for b in stage.boss_list:
+        b.update(dt, PlayerTest, stage.bullet_list)
 
         for atk in PlayerTest.active_attacks:
             for hitbox in atk['active_hitboxes']:
-                if b and b.hp > 0 and hitbox.colliderect(b.rect):
-                    if not b.grace_active:
-                        PlayerTest.action_cd_remaining = max(0 , PlayerTest.action_cd_remaining - PlayerTest.attack_type_data['cd']/5) # lower cd if succesful attack
-                        b.take_damage()
-                        b.grace_timestamp = pygame.time.get_ticks()
-                        b.grace_active = True
-        
-    for p in particles[:]:
+                if hitbox.colliderect(b.rect):
+                    PlayerTest.attacked(b, atk)
+
+            for enemy in list(atk['target']): #reduce tick_rate cd 
+                if atk['target'][enemy] > 0:
+                    atk['target'][enemy] -= dt    
+                    
+                        
+    for p in particles[:]: #safely remove with copying list
         p.update(dt)
         if p.lifetime <= 0:
             particles.remove(p)
     
-    # show_hitbox = True if len(bullet_list) > 20 else False
-    for projectile in bullet_list[:]:
-        projectile.update(dt)
+    # show_hitbox = True if len(bullet_list) > 20 else False 
+    for bullet in stage.bullet_list[:]: #safely remove with copying list
+        bullet.update(dt)
+
+        if bullet.out_of_bounds():
+            if stage.bullet_list: stage.bullet_list.remove(bullet)
+            continue
 
         #Check i-frame & kolisi player
         current_radius = PlayerTest.hitbox_radius + (PlayerTest.absorb_radius if PlayerTest.absorb_active else 0) 
-        if circle_collide(PlayerTest.rect.center, current_radius, projectile.rect.center, projectile.hitbox_radius):
+        if circle_collide(PlayerTest.rect.center, current_radius, bullet.rect.center, bullet.hitbox_radius):
             # Absorb
             if PlayerTest.absorb_active and not PlayerTest.is_phasing: 
-                if bullet_list: bullet_list.remove(projectile)
-                PlayerTest.phase_bar = min(2 , PlayerTest.phase_bar + 0.3)
-                PlayerTest.action_cd_remaining = max(0 , PlayerTest.action_cd_remaining - PlayerTest.absorb_cd/3) # Lower cd if parried
-                spawn_particles(projectile.rect.centerx, projectile.rect.centery, CYAN2_0, 6) # Absorb Sparks
-                PlayerTest.absorb_count += 1
-                if PlayerTest.absorb_count >= 5:
-                    PlayerTest.hp = min(PlayerTest.hp + 1, PlayerTest.max_hp)
-                    PlayerTest.absorb_count = 0
-                    spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, GREEN, 15) # Heal Sparks
+                PlayerTest.absorbed(bullet)
+                if stage.bullet_list: stage.bullet_list.remove(bullet)
                 continue
             
             # Got hit
             if not PlayerTest.is_phasing and not PlayerTest.grace_active: #grace_active = grace active or not
-                bullet_list.clear()
-                PlayerTest.hp -= 1
-                PlayerTest.grace_timestamp = pygame.time.get_ticks()
-                PlayerTest.grace_active = True
+                PlayerTest.take_damage()
+                stage.bullet_list.clear() #remove all bullet
                 shake_timer = 0.25 # Trigger Screen Shake
-                spawn_particles(PlayerTest.rect.centerx, PlayerTest.rect.centery, RED2_0, 10)
                 if PlayerTest.hp <= 0:
                     print("GAME OVER") # will make a retry/quit button
                     #running = False
                 continue
-    
-        if projectile.out_of_bounds():
-            if bullet_list: bullet_list.remove(projectile)
-            continue
     
     if shake_timer > 0:
         shake_timer -= dt
@@ -1015,20 +1122,20 @@ while running:
     # Draw objects 
     world_surface.blit(background_image, (0,0))
     
-    for platform in Platform_list:
+    for platform in stage.plat_list:
         if show_hitbox: pygame.draw.rect(world_surface, BROWN, platform.rect) #hitbox
         platform.draw_self(world_surface)
     
-    for projectile in bullet_list:
-        projectile.draw_self(world_surface)
-        if show_bullet_hitbox: projectile.draw_hitcircle(world_surface, RED)
-
-    for b in bosses:
-        b.draw(world_surface)
-        if show_hitbox: pygame.draw.rect(world_surface, RED, b.rect, 2) # boss hitbox
-    
     PlayerTest.draw(world_surface)
     if show_player_hitbox: PlayerTest.draw_hitcircle(world_surface, color=YELLOW, hitbox_radius=PlayerTest.hitbox_radius, border_width=3)
+
+    for bullet in stage.bullet_list:
+        bullet.draw_self(world_surface)
+        if show_bullet_hitbox: bullet.draw_hitcircle(world_surface, RED)
+
+    for b in stage.boss_list:
+        b.draw(world_surface)
+        if show_hitbox: pygame.draw.rect(world_surface, RED, b.rect, 2) # boss hitbox
        
     for p in particles:
         p.draw(world_surface)
@@ -1043,7 +1150,7 @@ while running:
     screen.blit(world_surface, (shake_x, shake_y))
     
     # Draw UI on top of everything (we don't want the UI to shake)
-    draw_ui(screen, PlayerTest, bosses)
+    draw_ui(screen, PlayerTest, stage.boss_list)
 
     pygame.display.update()
 
