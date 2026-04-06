@@ -1,0 +1,18 @@
+{
+    "1": {
+        "bosses": ["Cubicle"], 
+        "bg": "icy_cave.png",
+        "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
+        "plat_img": "platform.png",
+        "main_plat_img": "mainplatform.png",
+        "music": "ice_theme.mp3"
+    },
+    "2": {
+        "bosses": ["Cubicle", "Ice-ling"], 
+        "bg": "icy_cave.png",
+        "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
+        "plat_img": "platform.png",
+        "main_plat_img": "mainplatform.png",
+        "music": "ice_theme.mp3"
+    }
+}

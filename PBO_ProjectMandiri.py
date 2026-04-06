@@ -2,6 +2,7 @@ import pygame
 import sys
 import random
 import math
+import json
 
 pygame.init()
 pygame.font.init()
@@ -34,6 +35,70 @@ RED2_0 = (238, 75, 43)
 CYAN2_0 = (192, 253, 253)
 
 
+
+# ================================================ Functions ==========================================================================================================================================
+
+def load_json(path):
+    with open(f"data/{path}", "r") as f:
+        data = json.load(f)
+    return data
+
+def get_end_pos(x, y, angle, length): # for line might delete later, after getting a texture for facing indicator
+    end_x = x + length * math.cos(angle)
+    end_y = y + length * math.sin(angle)
+    return (end_x, end_y)
+
+def circle_collide(c1_pos, r1, c2_pos, r2):
+    dx = c1_pos[0] - c2_pos[0] 
+    dy = c1_pos[1] - c2_pos[1]
+    
+    return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
+
+def draw_ui(surface, player, boss_list):
+    # Player UI
+    p_text = UI_FONT.render(player.name.upper(), True, (192, 253, 253))
+    surface.blit(p_text, (20, HEIGHT - font_size - 10))
+    # HP Bar
+    hp_gap = 1/player.max_hp * 420
+    player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
+    image = get_image("ui/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
+    pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
+    if player.grace_active: 
+        # pygame.draw.rect(surface, RED, (102 + hp_gap/2, HEIGHT - font_size - 40, player.hp/player.max_hp * 400, 25)) #grace hp = almost last hit
+        pygame.draw.rect(surface, RED, (102 + hp_gap, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25)) #grace hp
+
+    pygame.draw.rect(surface, GREEN, (102, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25))
+
+    surface.blit(image, player_hp_bar_rect)
+    
+    # Absorb/Heal tracking
+    absorb_txt = UI_FONT.render(f"Baka Stack: {player.absorb_count}/5", True, CYAN, (250,250,250))
+    surface.blit(absorb_txt, (400, HEIGHT - font_size - 10))
+    
+    # Boss UI
+    boss_counter = 0
+    offset = -80
+    for b in reversed(boss_list): #read in reverse, so boss1 on top of boss2
+        if b:
+            b_text = UI_FONT.render(f"{b.name} (Phase {min(b.current_phase, b.total_phases)}/{b.total_phases})", True, 
+                                    WHITE if b.alive else RED2_0)
+            b_rect = b_text.get_rect(topright=(WIDTH - 20, HEIGHT - font_size - 65 + offset * boss_counter))
+            
+            surface.blit(b_text, b_rect)
+            
+            bar_widthMax = 300
+            bar_width = b.hp / b.max_hp * bar_widthMax
+            bar_x = WIDTH - 20 - bar_widthMax
+            pygame.draw.rect(surface, BLACK, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20))
+            pygame.draw.rect(surface, RED2_0, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_width, 20))
+            pygame.draw.rect(surface, WHITE, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20), 2)
+            pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - font_size - 20 + offset * boss_counter, 20, 20)) # color indicator
+            boss_counter += 1
+
+def spawn_particles(x, y, color, count=5, is_burst=False):
+    for i in range(count):
+        particles.append(Particle(x, y, color, is_burst))
+particles = []
 
 # ================================================= Cache =========================================================================================================================================
 assets = {} 
@@ -570,18 +635,21 @@ class Player(GameObject):
                                         self.rect.width * self.phase_bar, 
                                         self.phase_bar_rectMax.height)
 
-class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: check modularity
-    def __init__(self, name, phase_data, w=140, h=140, start_x = WIDTH//2, direction = 1, circle_color = WHITE, image = "enemy.png"): # 1 to go right, -1 to go left 
-        self.phases = phase_data                                                                                  
-        self.total_phases = len(phase_data)
+class Boss(GameObject):
+    def __init__(self, name, boss_data, start_x = WIDTH//2, direction = 1): # 1 to go right, -1 to go left 
+        self.boss_data = boss_data
+        self.phases = boss_data['phase']                                                                                  
+        self.total_phases = len(self.phases)
         self.current_phase = 1
+        size = boss_data['size']
+        image = boss_data['boss_img']
+        self.circle_color = boss_data['color']
         # data phase 1
-        start_y = self.phases[self.current_phase]['y_axis']
-        super().__init__(x=start_x, y=start_y, width=w, height=h, hitbox_radius=30, image_path="boss/" + image, 
+        start_y = self.phases[str(self.current_phase)]['y_axis']
+        super().__init__(x=start_x, y=start_y, width=size, height=size, hitbox_radius=30, image_path="boss/" + image, 
                                                                                     size_offsetx=125, size_offsety=125)
         self.name = name
-        self.circle_color = circle_color
-        self.max_hp = self.phases[self.current_phase]['max_hp']
+        self.max_hp = self.phases[str(self.current_phase)]['max_hp']
         self.hp = self.max_hp
         self.hit_tick = 0
         self.grace_active = False
@@ -604,7 +672,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
         if self.grace_active and pygame.time.get_ticks() - self.grace_timestamp >= self.grace_duration:
             self.grace_active = False
 
-        phase = self.phases[self.current_phase]
+        phase = self.phases[str(self.current_phase)]
         target_phase_y = phase['y_axis']
 
         #Transition phase movement
@@ -636,10 +704,9 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
             
     def draw(self, surface):
         if not self.alive: return
-        color = self.phases[self.current_phase]['color']
+        color = self.boss_data['color']
         if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
             self.draw_hitcircle(surface, color, 6) #draw hitbox here is more like indicator in the middle, color for phase color
-            self.draw_hitcircle(surface, self.circle_color, 10, 3) #self.color for boss main color
             self.draw_self(surface)
    
     def shoot(self, player, bullet_list, phase_data):
@@ -647,8 +714,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
         num_bullets = phase_data['num_bullet']
         spd = phase_data['bullet_spd']
         size = phase_data['bullet_size']
-        color = phase_data['color']
-        image = phase_data['image'] + '.png'
+        image = phase_data['bullet_img'] + '.png'
         cx, cy = self.rect.center
         
         if pattern == 'fan':
@@ -664,7 +730,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
                 by = math.sin(a) * spd
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5 #snap to 5* 0, 5, 10 etc for performance, angle is float so round it
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
                 
         if pattern == 'circle':
             step = (math.pi * 2) / num_bullets
@@ -674,7 +740,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
                 by = math.sin(a) * spd
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
                 
         if pattern == 'chaos': # Random from inside boss
             for i in range(num_bullets):
@@ -683,7 +749,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
                 by = math.sin(a) * spd
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
 
         if pattern == 'random': # Random entire screen
             for i in range(num_bullets):
@@ -705,7 +771,7 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
                     by = random.uniform(-50, 50)
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
-                bullet_list.append(Bullet(cx, cy, bx, by, size, color, image, angle=angle))
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
                 
     def take_damage(self, atk_dmg):
         self.hp -= atk_dmg
@@ -722,11 +788,11 @@ class Boss(GameObject): #boss use rectangular hitbox (almost finished) todo: che
             self.alive = False
             spawn_particles(self.rect.centerx, self.rect.centery, color=RED2_0, count=50, is_burst=True)
         else:
-            self.max_hp = self.phases[self.current_phase]['max_hp']
+            self.max_hp = self.phases[str(self.current_phase)]['max_hp']
             self.hp = self.max_hp
           
 class Bullet(GameObject):
-    def __init__(self, x, y, vx, vy, hitbox_radius , color=CYAN, image="bullet-orb.png", #default
+    def __init__(self, x, y, vx, vy, hitbox_radius , image="bullet-orb.png", color=CYAN, #default
                                                                  flipx = 0, flipy = 0, angle = 0, 
                                                                  size_offsetx=60, size_offsety=32.5):
         w = h = 2*hitbox_radius
@@ -782,7 +848,8 @@ class StageManager:
         self.bullet_list = []
 
     def load_stage(self):
-        cur_stage = self.stages_data[self.stage_counter]
+        self.boss_list.clear()
+        cur_stage = self.stages_data[str(self.stage_counter)]
 
         bg = "background/" + cur_stage['bg']
         self.bg = get_image(bg, size_offsetx=WIDTH, size_offsety=HEIGHT)
@@ -798,10 +865,15 @@ class StageManager:
         for xy in cur_stage['platforms']:
             self.add_plat(xy, plat_img)
 
-        if cur_stage['bosses'] == 'random': 
-            self.boss_list = self.generate_random_boss()
+        if 'random' in cur_stage['bosses']: 
+            self.boss_list.append(self.generate_random_boss())
         else: 
-            self.boss_list = cur_stage['bosses']
+            bosses_name = cur_stage['bosses'] # get boss names
+            for b in bosses_name:
+                boss_data = load_json(f"bosses/{b}.json")
+                new_boss = Boss(b, boss_data, random.uniform(100, WIDTH - 100), random.choice([1 , -1]))
+                self.boss_list.append(new_boss)
+
         
     def change_stage(self):
         self.stage_counter += 1
@@ -850,164 +922,103 @@ class StageManager:
 
         return boss_phase
 
-    def generate_random_boss(self):
-        circle_color_list = [RED, GREEN, YELLOW, BLACK, WHITE]
-        boss_list = []
-        for i in range(random.randint(1,3)): #generate 3 boss, 3 is already too much man
+    def generate_random_boss(self, amount = 1):
+        for i in range(random.randint(1,amount)): #generate 3 boss, 3 is already too much man
             size = random.randint(100, 200)
             start_x = random.uniform(100, WIDTH - 100)
             direction=random.choice([1 , -1])
-            circle_color = random.choice(circle_color_list)
-            boss = Boss(f"Boss {i+1}", self.generate_boss_phase(), size, size, start_x, direction, circle_color)
-            circle_color_list.remove(circle_color)
-            boss_list.append(boss)
-        return boss_list
+            boss = Boss(f"Boss {i+1}", self.generate_boss_phase(), size, start_x, direction)
+        return boss
 
 # ================================================ Enemy making - manual ==========================================================================================================================================
 
 # Enemy making - color for phase color - bullet image = 'asset/ + {bullet-orb, bullet-1, bullet-2, bullet-3} + .png'
-boss1_phase = { 
-            1: {'max_hp': 15, 'move_speed': 100, 'y_axis': 150, 'rate': 1.5, 'pattern': 'circle', 
-                'num_bullet': 5, 'bullet_spd': 300, 'bullet_size': 10,'color': ORANGE, 'image': 'bullet-1'},
+# boss1_phase = { 
+#             1: {'max_hp': 15, 'move_speed': 100, 'y_axis': 150, 'rate': 1.5, 'pattern': 'circle', 
+#                 'num_bullet': 5, 'bullet_spd': 300, 'bullet_size': 10,'color': ORANGE, 'image': 'bullet-1'},
 
-            2: {'max_hp': 18, 'move_speed': 200, 'y_axis': 250, 'rate': 2, 'pattern': 'random', 
-                'num_bullet': 5, 'bullet_spd': 350, 'bullet_size': 8,'color': PURPLE, 'image': 'bullet-3'},
+#             2: {'max_hp': 18, 'move_speed': 200, 'y_axis': 250, 'rate': 2, 'pattern': 'random', 
+#                 'num_bullet': 5, 'bullet_spd': 350, 'bullet_size': 8,'color': PURPLE, 'image': 'bullet-3'},
 
-            3: {'max_hp': 16, 'move_speed': 250, 'y_axis': 350, 'rate': 1.0, 'pattern': 'circle', 
-                'num_bullet': 8, 'bullet_spd': 400, 'bullet_size': 15,'color': BLUE, 'image': 'bullet-2'},
+#             3: {'max_hp': 16, 'move_speed': 250, 'y_axis': 350, 'rate': 1.0, 'pattern': 'circle', 
+#                 'num_bullet': 8, 'bullet_spd': 400, 'bullet_size': 15,'color': BLUE, 'image': 'bullet-2'},
 
-            4: {'max_hp': 14, 'move_speed': 100, 'y_axis': 400, 'rate': 0.8, 'pattern': 'fan', 
-                'num_bullet': 7, 'bullet_spd': 400, 'bullet_size': 7,'color': CYAN, 'image': 'bullet-2'},
+#             4: {'max_hp': 14, 'move_speed': 100, 'y_axis': 400, 'rate': 0.8, 'pattern': 'fan', 
+#                 'num_bullet': 7, 'bullet_spd': 400, 'bullet_size': 7,'color': CYAN, 'image': 'bullet-2'},
 
-            5: {'max_hp': 13, 'move_speed': 550, 'y_axis': 150, 'rate': 0.4, 'pattern': 'chaos', 
-                'num_bullet': 8, 'bullet_spd': 450, 'bullet_size': 9,'color': GOLD, 'image': 'bullet-orb'}
-        }
-boss2_phase = { 
-            1: {'max_hp': 16, 'move_speed': 350, 'y_axis': 200, 'rate': 0.8, 'pattern': 'chaos', 
-                'num_bullet': 4, 'bullet_spd': 400, 'bullet_size': 8, 'color': ORANGE, 'image': 'bullet-3'},
+#             5: {'max_hp': 13, 'move_speed': 550, 'y_axis': 150, 'rate': 0.4, 'pattern': 'chaos', 
+#                 'num_bullet': 8, 'bullet_spd': 450, 'bullet_size': 9,'color': GOLD, 'image': 'bullet-orb'}
+#         }
+# boss2_phase = { 
+#             1: {'max_hp': 16, 'move_speed': 350, 'y_axis': 200, 'rate': 0.8, 'pattern': 'chaos', 
+#                 'num_bullet': 4, 'bullet_spd': 400, 'bullet_size': 8, 'color': ORANGE, 'image': 'bullet-3'},
 
-            2: {'max_hp': 18, 'move_speed': 100, 'y_axis': 450, 'rate': 0.5, 'pattern': 'random', 
-                'num_bullet': 3, 'bullet_spd': 300, 'bullet_size': 12, 'color': PURPLE, 'image': 'bullet-1'},
+#             2: {'max_hp': 18, 'move_speed': 100, 'y_axis': 450, 'rate': 0.5, 'pattern': 'random', 
+#                 'num_bullet': 3, 'bullet_spd': 300, 'bullet_size': 12, 'color': PURPLE, 'image': 'bullet-1'},
 
-            3: {'max_hp': 20, 'move_speed': 400, 'y_axis': 150, 'rate': 1.2, 'pattern': 'circle', 
-                'num_bullet': 16, 'bullet_spd': 250, 'bullet_size': 6, 'color': BLUE, 'image': 'bullet-3'},
+#             3: {'max_hp': 20, 'move_speed': 400, 'y_axis': 150, 'rate': 1.2, 'pattern': 'circle', 
+#                 'num_bullet': 16, 'bullet_spd': 250, 'bullet_size': 6, 'color': BLUE, 'image': 'bullet-3'},
 
-            4: {'max_hp': 17, 'move_speed': 600, 'y_axis': 300, 'rate': 0.4, 'pattern': 'random', 
-                'num_bullet': 5, 'bullet_spd': 500, 'bullet_size': 7, 'color': CYAN, 'image': 'bullet-1'},
+#             4: {'max_hp': 17, 'move_speed': 600, 'y_axis': 300, 'rate': 0.4, 'pattern': 'random', 
+#                 'num_bullet': 5, 'bullet_spd': 500, 'bullet_size': 7, 'color': CYAN, 'image': 'bullet-1'},
 
-            5: {'max_hp': 22, 'move_speed': 700, 'y_axis': 200, 'rate': 0.2, 'pattern': 'chaos', 
-                'num_bullet': 10, 'bullet_spd': 450, 'bullet_size': 10, 'color': GOLD, 'image': 'bullet-1'}
-        }
+#             5: {'max_hp': 22, 'move_speed': 700, 'y_axis': 200, 'rate': 0.2, 'pattern': 'chaos', 
+#                 'num_bullet': 10, 'bullet_spd': 450, 'bullet_size': 10, 'color': GOLD, 'image': 'bullet-1'}
+#         }
 
-boss1 = Boss("Cubecicle", boss2_phase, w=100, h=100, start_x=random.uniform(100, WIDTH - 100), direction=random.choice([1 , -1]), circle_color=CYAN)
-boss2 = Boss("And more..", boss1_phase, w=140, h=140, start_x=random.uniform(100, WIDTH - 100), direction=random.choice([1 , -1]), circle_color=CYAN2_0)
+# boss1 = Boss("Cubecicle", boss2_phase, w=100, h=100, start_x=random.uniform(100, WIDTH - 100), direction=random.choice([1 , -1]), circle_color=CYAN)
+# boss2 = Boss("And more..", boss1_phase, w=140, h=140, start_x=random.uniform(100, WIDTH - 100), direction=random.choice([1 , -1]), circle_color=CYAN2_0)
 
 
 
 
 # ================================================ Stage making ==========================================================================================================================================
 
-STAGES_ICY = {
-    1: {
-        "bosses": [boss1], 
-        "bg": "icy_cave.png",
-        "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
-        "plat_img": "platform.png",
-        "main_plat_img": "mainplatform.png",
-        "music": "ice_theme.mp3"
-    },
-    2: {
-        "bosses": [boss1, boss2], 
-        "bg": "icy_cave.png",
-        "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
-        "plat_img": "platform.png",
-        "main_plat_img": "mainplatform.png",
-        "music": "ice_theme.mp3"
-    },
-}
+STAGES_ICY = load_json("stages/icy_cave.json")
 
-bg = "icy_cave"
-background_image = pygame.image.load('assets/background/' + bg + '.png')
-background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
+# STAGES_ICY = {
+#     1: {
+#         "bosses": ['random'], 
+#         "bg": "icy_cave.png",
+#         "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
+#         "plat_img": "platform.png",
+#         "main_plat_img": "mainplatform.png",
+#         "music": "ice_theme.mp3"
+#     },
+#     2: {
+#         "bosses": [boss1, boss2], 
+#         "bg": "icy_cave.png",
+#         "platforms": [[150,250], [450,400], [700,100], [1100, 100], [1300,400], [1600,250]],
+#         "plat_img": "platform.png",
+#         "main_plat_img": "mainplatform.png",
+#         "music": "ice_theme.mp3"
+#     },
+# }
+# bg = "icy_cave"
+# background_image = pygame.image.load('assets/background/' + bg + '.png')
+# background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
 
-MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="platform/mainplatform.png",
-                                                        size_offsety=1000)
+# MainPlatform = GameObject(WIDTH//2, HEIGHT, WIDTH, 250, size_offsetx=200, image_path="platform/mainplatform.png",
+#                                                         size_offsety=1000)
 
-MainPlatform.rect.top = GROUND_Y
+# MainPlatform.rect.top = GROUND_Y
 
 
 # ================================================ Player making ==========================================================================================================================================
 
-attack_type = {
-            "slash":    {'damage': 2.5, 'damage_tick': 'single', 'duration': 0.3, 'active_frames': (2, 8), 'frame_count': 10, 'cd': 0.8, 'scale':3},
-            "pierce":   {'damage': 3.0, 'damage_tick': 'single', 'duration': 0.50, 'active_frames': (4, 8), 'frame_count': 9, 'cd': 1.2, 'scale':3},
-            "spin" :    {'damage': 0.5, 'damage_tick': 'multi','duration': 0.70, 'active_frames': (2, 10),'frame_count': 13,'cd': 1.0, 'scale':3},
-        }
+# attack_type = {
+#             "slash":    {'damage': 2.5, 'damage_tick': 'single', 'duration': 0.3, 'active_frames': (2, 8), 'frame_count': 10, 'cd': 0.8, 'scale':3},
+#             "pierce":   {'damage': 3.0, 'damage_tick': 'single', 'duration': 0.50, 'active_frames': (4, 8), 'frame_count': 9, 'cd': 1.2, 'scale':3},
+#             "spin" :    {'damage': 0.5, 'damage_tick': 'multi','duration': 0.70, 'active_frames': (2, 10),'frame_count': 13,'cd': 1.0, 'scale':3},
+#         }
+
+attack_type = load_json("player_attack.json")
+
+
+
 
 PlayerTest = Player(max_hp=15, name="HelicopKun", attack='slash')
 #might do hotbar inventory-based attacks 1.slash, 2.Pierce, 3...
-
-
-# ================================================ Functions ==========================================================================================================================================
-
-def get_end_pos(x, y, angle, length): # for line might delete later, after getting a texture for facing indicator
-    end_x = x + length * math.cos(angle)
-    end_y = y + length * math.sin(angle)
-    return (end_x, end_y)
-
-def circle_collide(c1_pos, r1, c2_pos, r2):
-    dx = c1_pos[0] - c2_pos[0] 
-    dy = c1_pos[1] - c2_pos[1]
-    
-    return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
-
-def draw_ui(surface, player, boss_list):
-    # Player UI
-    p_text = UI_FONT.render(player.name.upper(), True, (192, 253, 253))
-    surface.blit(p_text, (20, HEIGHT - font_size - 10))
-    # HP Bar
-    hp_gap = 1/player.max_hp * 420
-    player_hp_bar_rect = pygame.Rect(-25, HEIGHT - font_size - 72, 600, 45)
-    image = get_image("ui/hp_bar_player.png", player_hp_bar_rect, size_offsety=30)
-    pygame.draw.rect(surface, BLACK, (102, HEIGHT - font_size - 40, 420, 25))
-    if player.grace_active: 
-        # pygame.draw.rect(surface, RED, (102 + hp_gap/2, HEIGHT - font_size - 40, player.hp/player.max_hp * 400, 25)) #grace hp = almost last hit
-        pygame.draw.rect(surface, RED, (102 + hp_gap, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25)) #grace hp
-
-    pygame.draw.rect(surface, GREEN, (102, HEIGHT - font_size - 40, player.hp/player.max_hp * 420, 25))
-
-    surface.blit(image, player_hp_bar_rect)
-    
-    # Absorb/Heal tracking
-    absorb_txt = UI_FONT.render(f"Baka Stack: {player.absorb_count}/5", True, CYAN, (250,250,250))
-    surface.blit(absorb_txt, (400, HEIGHT - font_size - 10))
-    
-    # Boss UI
-    boss_counter = 0
-    offset = -80
-    for b in reversed(boss_list): #read in reverse, so boss1 on top of boss2
-        if b:
-            b_text = UI_FONT.render(f"{b.name} (Phase {min(b.current_phase, b.total_phases)}/{b.total_phases})", True, 
-                                    WHITE if b.alive else RED2_0)
-            b_rect = b_text.get_rect(topright=(WIDTH - 20, HEIGHT - font_size - 65 + offset * boss_counter))
-            
-            surface.blit(b_text, b_rect)
-            
-            bar_widthMax = 300
-            bar_width = b.hp / b.max_hp * bar_widthMax
-            bar_x = WIDTH - 20 - bar_widthMax
-            pygame.draw.rect(surface, RED2_0, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20))
-            pygame.draw.rect(surface, b.phases[min(b.current_phase, b.total_phases)]['color'], 
-                            (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_width, 20))
-            pygame.draw.rect(surface, WHITE, (bar_x, HEIGHT - font_size - 20 + offset * boss_counter, bar_widthMax, 20), 2)
-            pygame.draw.rect(surface, b.circle_color, (bar_x - 30, HEIGHT - font_size - 20 + offset * boss_counter,
-                                                                 20, 20))
-            boss_counter += 1
-
-def spawn_particles(x, y, color, count=5, is_burst=False):
-    for i in range(count):
-        particles.append(Particle(x, y, color, is_burst))
-particles = []
 
 # ================================================ Game loop setup ==========================================================================================================================================
 
@@ -1022,8 +1033,8 @@ world_surface = pygame.Surface((WIDTH, HEIGHT))
 #Debugging
 show_hitbox = False
 show_player_hitbox = False
-show_bullet_hitbox = False
-show_atk_hitbox = False
+show_bullet_hitbox = True
+show_atk_hitbox = True
 show_img_rect = False
 
 clock = pygame.time.Clock()
@@ -1032,7 +1043,7 @@ clock = pygame.time.Clock()
 running = True
 # ================================================ Game loop ==========================================================================================================================================
 
-while running: 
+while running:
     dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
 
     # og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
@@ -1065,13 +1076,18 @@ while running:
     click_state['left'] = mouse_buttons[0]
     click_state['right'] = mouse_buttons[2]
     click_state['pos'] = mouse_pos
-        
+    
+    if all(not b.alive for b in stage.boss_list):
+        stage.change_stage()
+        stage.load_stage()
+        continue
 
     # Update Entities
     PlayerTest.update(keys, click_state, dt, stage.plat_list)
 
     for b in stage.boss_list:
         b.update(dt, PlayerTest, stage.bullet_list)
+
 
         for atk in PlayerTest.active_attacks:
             for hitbox in atk['active_hitboxes']:
@@ -1120,7 +1136,7 @@ while running:
 
     
     # Draw objects 
-    world_surface.blit(background_image, (0,0))
+    world_surface.blit(stage.bg, (0,0))
     
     for platform in stage.plat_list:
         if show_hitbox: pygame.draw.rect(world_surface, BROWN, platform.rect) #hitbox
