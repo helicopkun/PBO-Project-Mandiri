@@ -1,5 +1,6 @@
-from Entities.GameObject import GameObject
 from Shared.constants import*
+from Entities.GameObject import GameObject
+
           
 class Bullet(GameObject):
     def __init__(self, x, y, vx, vy, hitbox_radius , image="bullet-orb.png", color=CYAN, #default

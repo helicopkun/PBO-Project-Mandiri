@@ -3,8 +3,11 @@
     "grace_duration" : 1.5, 
     "hitbox" : 15,
 
+    "accel": 10,
     "speedX" : 400,
     "speedY" : 400,
+    "jump_force": 850,
+    "quickfall_force": 900,
     "gravity" : 350,
     
     "phase_spd" : 1.5,

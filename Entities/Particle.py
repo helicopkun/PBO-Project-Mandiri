@@ -1,4 +1,4 @@
-import random, pygame, math
+import pygame, random, math
 
 class Particle:
     def __init__(self, x, y, color, is_burst=False):

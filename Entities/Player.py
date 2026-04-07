@@ -1,8 +1,8 @@
 import pygame, math
-from Entities.GameObject import GameObject
-from Entities.Particle import spawn_particles
 from Shared.constants import*
 from Shared.utils import load_json, get_end_pos, get_image
+from Entities.GameObject import GameObject
+from Entities.Particle import spawn_particles
 
 class Player(GameObject):
     def __init__(self, name = "Baka", image = "cirno.png", attack = 'slash'):
@@ -25,6 +25,9 @@ class Player(GameObject):
 
         self.grace_active = False # i-frame setelah kena hit
         self.grace_timestamp = 0
+
+        self.vx = 0.0
+        self.vy = 0.0
 
         self.is_phasing = False
         self.phase_bar = 0 # current bar
@@ -142,11 +145,36 @@ class Player(GameObject):
             pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.bottom + 10),
                                             get_end_pos(self.rect.right + 10, self.rect.bottom + 10, 45, line_length), line_width)
 
+
     def take_damage(self):
         self.hp -= 1
         self.grace_timestamp = pygame.time.get_ticks()
         self.grace_active = True
         spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, 10)
+
+    def current_state(self, dt): #Update cooldown, grace, duration
+        #Check phasing for hitbox radius
+        if self.is_phasing: self.hitbox_radius = 0
+        else: self.hitbox_radius = self.cur_hitbox
+        
+        #Hit Grace      
+        if self.grace_active and pygame.time.get_ticks() - self.grace_timestamp >= self.config['grace_duration'] * 1000:
+            self.grace_active = False
+        
+        #Action CD, cannot different action at same time, different CD based on last action
+        if self.action_cd_remaining > 0:
+            self.action_cd_remaining -= dt
+
+        # Absorb
+        if self.absorb_active:
+            self.absorb_timer -= dt
+            if self.absorb_timer <= 0:
+                self.absorb_active = False
+
+        # Attack
+        for atk in reversed(self.active_attacks): # read in reverse for safely removing atk
+            self.attacking(atk)
+
 
     def actions(self, keys, click_state):
         #Absorb
@@ -215,185 +243,6 @@ class Player(GameObject):
         
         enemy.take_damage(atk_type['damage'])
 
-    def on_platform(self):
-        for platform in self.platform_group:
-            if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right: # ketika ujung player memasuki area platform
-                if self.rect.bottom >= platform.rect.top and self.old_bottom <= platform.rect.top + 5:
-                    self.current_platform = platform
-                    return True
-        self.current_platform = None
-        return False
-    
-    def move(self, keys, dt):
-        on_plat = self.on_platform() #cache on_plat if dont need to check all the time
-        self.old_bottom = self.rect.bottom # save old footing
-            
-        #Phasing movement
-        if keys[pygame.K_LSHIFT] and self.action_cd_remaining <= 0 and not self.grace_active:
-            if self.phase_bar > 0:
-                self.phase_bar -= dt
-                self.hitbox_radius = 0
-                self.is_phasing = True 
-            else:
-                self.is_phasing = False
-            self.phase_barCD_timestamp = pygame.time.get_ticks()  # set CD after phasing
-
-        else:
-            if pygame.time.get_ticks() - self.phase_barCD_timestamp >= self.config['phase_cd_delay'] * 1000: # Recharge after CD
-                self.phase_bar = min(self.config['phase_max'], self.phase_bar + self.config['phase_rate'] * dt)
-            
-            self.is_phasing = False
-
-        if self.is_phasing:
-            dx = 0
-            dy = 0
-            if keys[pygame.K_a]: dx = -1 
-            if keys[pygame.K_d]: dx = 1
-
-            if keys[pygame.K_w]: dy = -1 
-            if keys[pygame.K_s]: dy = 1 
-
-            if dx != 0 and dy != 0:
-                length = (dx**2 + dy**2) ** 0.5
-                dx /= length
-                dy /= length
-        
-            self.rect.centerx += dx * self.config['speedX'] * dt * self.config['phase_spd']
-            self.rect.left = max(0, self.rect.left)
-            self.rect.right = min(WIDTH, self.rect.right)
-            
-            self.rect.centery += dy * self.config['speedY'] * dt * self.config['phase_spd']
-            self.rect.top = max(0, self.rect.top)
-            self.rect.bottom = min(GROUND_Y, self.rect.bottom)
-            
-            return #agar tidak double dari movement biasa 
-
-        #Horizontal movement
-        if keys[pygame.K_a]:
-                self.rect.centerx -= self.config['speedX'] * dt
-                self.rect.left = max(0, self.rect.left)
-
-        if keys[pygame.K_d]:
-                self.rect.centerx += self.config['speedX'] * dt
-                self.rect.right = min(WIDTH, self.rect.right)
-
-        #Vertical movement
-        if keys[pygame.K_s]:
-            allow_quickfall = self.quickfall_plat_elapsed >= self.config['quickfall_plat_threshold']
-            self.rect.centery += self.config['speedY'] * dt
-
-            if self.on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
-                self.rect.bottom = self.current_platform.rect.top #clamp to cur plat
-            else:
-                self.rect.bottom = min(GROUND_Y, self.rect.bottom)
-
-        if keys[pygame.K_s] and self.on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
-        else :                                      self.quickfall_plat_elapsed = 0
-
-        if keys[pygame.K_w] and on_plat and not self.is_jumping:
-            if self.jump_recovery_elapsed >= self.config['jump_recovery_threshold']:
-                self.is_jumping = True                  
-                self.jump_duration_elapsed = 0
-                self.jump_recovery_elapsed = 0
-        
-        if self.is_jumping:
-            if keys[pygame.K_w] and not keys[pygame.K_s] and self.jump_duration_elapsed < self.config['jump_duration_threshold']:  # Durasi lompat jika di tahan -> sampai max                            
-                self.rect.centery -= self.config['speedY'] * dt
-                self.rect.top = max(0, self.rect.top)
-                self.jump_duration_elapsed += dt
-            else: # Jika w berhenti ditahan, quick-fall, mencapai batas max = sudah tidak jumping
-                self.is_jumping = False
-
-        #Reset airborne, cooldown jump, etc jika berada di platform
-        if self.on_platform() and not (self.is_jumping):
-            self.jump_recovery_elapsed += dt
-            self.airborne_elapsed = 0
-                 
-        #Gravitasi
-        if not (self.on_platform() or self.is_jumping):
-            self.airborne_elapsed += dt # set airborne
-            if self.airborne_elapsed > self.config['airborne_threshold']: #stop airborne if airborne_elapsed = max
-                slowing = self.config['gravity']/2 if keys[pygame.K_w] else 0 
-                self.rect.centery += (self.config['gravity'] - slowing) * dt
-                self.rect.bottom = min(GROUND_Y, self.rect.bottom)
-
-    def facing_indicator(self, keys, click_state):
-        #Movement facing indicator
-        if not self.absorb_active:
-            if pygame.time.get_ticks() - self.look_attack_timestamp >= 400: # only works after for when just launching attack
-                
-                if keys[pygame.K_w]: # set delay timer after look up (or down too? if i wanna)
-                    self.look_jump_timestamp = pygame.time.get_ticks()
-                        
-                if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing_right = True 
-                if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing_right = False
-
-                if keys[pygame.K_w] and not keys[pygame.K_s]: self.facing = 'up'
-                if keys[pygame.K_s] and not keys[pygame.K_w]: self.facing = 'down'
-
-                if self.facing == 'up': 
-                    if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'top-right'
-                    if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'top-left'
-
-                if self.facing == 'down':
-                    if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'bottom-right'
-                    if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'bottom-left'
-                
-                if pygame.time.get_ticks() - self.look_jump_timestamp >= 200: # delay after jump
-                    self.facing = 'right' if self.facing_right else 'left'
-                
-        # Attack facing indicator
-        if self.action_cd_remaining <= 0:
-            direction = ['right', 'top-right', 'up', 'top-left', 'left', 'bottom-left', 'down', 'bottom-right']
-            if click_state['left']:
-                mx , my = click_state['pos']
-                dx = mx - self.rect.centerx
-                dy = my - self.rect.centery
-
-                self.facing_angle = math.degrees(math.atan2(-dy, dx)) #-dy because pygame y is flipped
-                # shifts from 0 <-> 44 to -22.5 <-> 22.5 for index 0      
-                index = int((self.facing_angle + 22.5) // 45) % 8 # 22.5 for shifting angle, e.g: without 0 - 44 -> 0 instead turn into (-22.5 + 22.5) to (22.5 + 22.5) -> 0
-                self.facing = direction[index] # convert 24-d to 8-d
-                
-                self.facing_angle = round(self.facing_angle / 15) * 15 # snap to 15*
-
-                # Reset facing after different direction from current direction attack
-                if self.facing in {'right', 'top-right', 'bottom-right'}:
-                    self.facing_right = True
-                if self.facing in {'left', 'top-left', 'bottom-left'}: 
-                    self.facing_right = False
-
-            elif keys[pygame.K_k]:
-                for i in range(8):
-                    if self.facing == direction[i]:
-                        self.facing_angle = i * 45
-
-        # Char facing for direction
-        if self.facing in {'right', 'top-right', 'bottom-right'}: self.facing_right = True
-        if self.facing in {'left', 'top-left', 'bottom-left'}: self.facing_right = False
-
-    def current_state(self, dt): #Update cooldown, grace, duration
-        #Check phasing for hitbox radius
-        if self.is_phasing: self.hitbox_radius = 0
-        else: self.hitbox_radius = self.cur_hitbox
-        
-        #Hit Grace      
-        if self.grace_active and pygame.time.get_ticks() - self.grace_timestamp >= self.config['grace_duration'] * 1000:
-            self.grace_active = False
-        
-        #Action CD, cannot different action at same time, different CD based on last action
-        if self.action_cd_remaining > 0:
-            self.action_cd_remaining -= dt
-
-        # Absorb duration
-        if self.absorb_active:
-            self.absorb_timer -= dt
-            if self.absorb_timer <= 0:
-                self.absorb_active = False
-
-        # Attack
-        for atk in reversed(self.active_attacks): # read in reverse for safely removing atk
-            self.attacking(atk)
 
     def attacking(self, atk): #generate active frame hitbox for specific attack
         atk['active_hitboxes'].clear()# Reset active hitboxes every frame
@@ -466,3 +315,217 @@ class Player(GameObject):
         self.phase_bar_rect = pygame.Rect(self.phase_bar_rectMax.left, self.phase_bar_rectMax.top,
                                         self.rect.width * self.phase_bar, 
                                         self.phase_bar_rectMax.height)
+
+
+    def on_platform(self):
+        for platform in self.platform_group:
+            if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right: # ketika ujung player memasuki area platform
+                if self.rect.bottom >= platform.rect.top and self.old_bottom <= platform.rect.top + 5:
+                    self.current_platform = platform
+                    return True
+        self.current_platform = None
+        return False
+    
+    def move(self, keys, dt):
+        on_plat = self.on_platform() #cache on_plat if dont need to check all the time
+        self.old_bottom = self.rect.bottom # save old footing
+            
+        #Phasing movement
+        if keys[pygame.K_LSHIFT] and self.action_cd_remaining <= 0 and not self.grace_active:
+            if self.phase_bar > 0:
+                self.phase_bar -= dt
+                self.hitbox_radius = 0
+                self.is_phasing = True 
+            else:
+                self.is_phasing = False
+            self.phase_barCD_timestamp = pygame.time.get_ticks()  # set CD after phasing
+
+        else:
+            if pygame.time.get_ticks() - self.phase_barCD_timestamp >= self.config['phase_cd_delay'] * 1000: # Recharge after CD
+                self.phase_bar = min(self.config['phase_max'], self.phase_bar + self.config['phase_rate'] * dt)
+            
+            self.is_phasing = False
+
+        if self.is_phasing:
+            dx = 0
+            dy = 0
+            if keys[pygame.K_a]: dx = -1 
+            if keys[pygame.K_d]: dx = 1
+
+            if keys[pygame.K_w]: dy = -1 
+            if keys[pygame.K_s]: dy = 1 
+
+            if dx != 0 and dy != 0:
+                length = (dx**2 + dy**2) ** 0.5
+                dx /= length
+                dy /= length
+        
+            self.rect.centerx += dx * self.config['speedX'] * dt * self.config['phase_spd']
+            self.rect.left = max(0, self.rect.left)
+            self.rect.right = min(WIDTH, self.rect.right)
+            
+            self.rect.centery += dy * self.config['speedY'] * dt * self.config['phase_spd']
+            self.rect.top = max(0, self.rect.top)
+            self.rect.bottom = min(GROUND_Y, self.rect.bottom)
+            
+            return          #agar tidak double dari movement biasa 
+
+
+                #Horizontal movement
+        if keys[pygame.K_a]:
+                self.rect.centerx -= self.config['speedX'] * dt
+                self.rect.left = max(0, self.rect.left)
+
+        if keys[pygame.K_d]:
+                self.rect.centerx += self.config['speedX'] * dt
+                self.rect.right = min(WIDTH, self.rect.right)
+
+        #Vertical movement
+        if keys[pygame.K_s]:
+            allow_quickfall = self.quickfall_plat_elapsed >= self.config['quickfall_plat_threshold']
+            self.rect.centery += self.config['speedY'] * dt
+
+            if self.on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
+                self.rect.bottom = self.current_platform.rect.top #clamp to cur plat
+            else:
+                self.rect.bottom = min(GROUND_Y, self.rect.bottom)
+
+        if keys[pygame.K_s] and self.on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
+        else :                                      self.quickfall_plat_elapsed = 0
+
+        if keys[pygame.K_w] and on_plat and not self.is_jumping:
+            if self.jump_recovery_elapsed >= self.config['jump_recovery_threshold']:
+                self.is_jumping = True                  
+                self.jump_duration_elapsed = 0
+                self.jump_recovery_elapsed = 0
+        
+        if self.is_jumping:
+            if keys[pygame.K_w] and not keys[pygame.K_s] and self.jump_duration_elapsed < self.config['jump_duration_threshold']:  # Durasi lompat jika di tahan -> sampai max                            
+                self.rect.centery -= self.config['speedY'] * dt
+                self.rect.top = max(0, self.rect.top)
+                self.jump_duration_elapsed += dt
+            else: # Jika w berhenti ditahan, quick-fall, mencapai batas max = sudah tidak jumping
+                self.is_jumping = False
+
+        #Reset airborne, cooldown jump, etc jika berada di platform
+        if self.on_platform() and not (self.is_jumping):
+            self.jump_recovery_elapsed += dt
+            self.airborne_elapsed = 0
+                 
+        #Gravitasi
+        if not (self.on_platform() or self.is_jumping):
+            self.airborne_elapsed += dt # set airborne
+            if self.airborne_elapsed > self.config['airborne_threshold']: #stop airborne if airborne_elapsed = max
+                slowing = self.config['gravity']/2 if keys[pygame.K_w] else 0 
+                self.rect.centery += (self.config['gravity'] - slowing) * dt
+                self.rect.bottom = min(GROUND_Y, self.rect.bottom)
+
+
+
+        #Trying accel was a bad idea i think
+        # #Horizontal movement
+        # target_vx = 0
+        # if keys[pygame.K_a]: target_vx = -self.config['speedX']
+        # if keys[pygame.K_d]: target_vx =  self.config['speedX']
+
+        # accel = self.config['accel']   # ~10-15 feels snappy, ~5 feels heavy/soulslike
+        # self.vx += (target_vx - self.vx) * accel * dt
+
+        # self.rect.centerx += self.vx * dt
+        # self.rect.left  = max(0, self.rect.left)
+        # self.rect.right = min(WIDTH, self.rect.right)
+
+        # #Vertical movement
+        # if keys[pygame.K_s]:
+        #     allow_quickfall = self.quickfall_plat_elapsed >= self.config['quickfall_plat_threshold']
+        #     self.vy = self.config['quickfall_force'] * dt
+
+        #     if self.on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
+        #         self.rect.bottom = self.current_platform.rect.top #clamp to cur plat
+        #     else:
+        #         self.rect.bottom = min(GROUND_Y, self.rect.bottom)
+
+        # if keys[pygame.K_s] and self.on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
+        # else :                                      self.quickfall_plat_elapsed = 0
+
+        # if keys[pygame.K_w] and on_plat and not self.is_jumping:
+        #     if self.jump_recovery_elapsed >= self.config['jump_recovery_threshold']:
+        #         self.is_jumping = True                  
+        #         self.vy = -self.config['jump_force']
+        #         self.jump_duration_elapsed = 0
+        #         self.jump_recovery_elapsed = 0
+        
+        # if self.is_jumping and self.vy < 0 and not keys[pygame.K_w]:
+        #     self.vy *= 0.85
+
+        # #Gravitasi
+        # if not self.on_platform():
+        #     self.airborne_elapsed += dt # set airborne
+        #     if self.airborne_elapsed > self.config['airborne_threshold']: #stop airborne if airborne_elapsed = max
+        #         slowing = self.config['gravity']/2 if keys[pygame.K_w] else 0
+        #         self.vy += (self.config['gravity'] - slowing) * dt
+
+        # self.rect.centery += self.vy * dt
+        # self.rect.bottom = min(GROUND_Y, self.rect.bottom)
+
+        # #Landed
+        # if self.on_platform():
+        #     self.jump_recovery_elapsed += dt
+        #     self.airborne_elapsed = 0
+        #     self.is_jumping = False
+        #     self.vy = 0
+
+    def facing_indicator(self, keys, click_state):
+        #Movement facing indicator
+        if not self.absorb_active:
+            if pygame.time.get_ticks() - self.look_attack_timestamp >= 400: # only works after for when just launching attack
+                
+                if keys[pygame.K_w]: # set delay timer after look up (or down too? if i wanna)
+                    self.look_jump_timestamp = pygame.time.get_ticks()
+                        
+                if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing_right = True 
+                if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing_right = False
+
+                if keys[pygame.K_w] and not keys[pygame.K_s]: self.facing = 'up'
+                if keys[pygame.K_s] and not keys[pygame.K_w]: self.facing = 'down'
+
+                if self.facing == 'up': 
+                    if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'top-right'
+                    if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'top-left'
+
+                if self.facing == 'down':
+                    if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'bottom-right'
+                    if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'bottom-left'
+                
+                if pygame.time.get_ticks() - self.look_jump_timestamp >= 200: # delay after jump
+                    self.facing = 'right' if self.facing_right else 'left'
+                
+        # Attack facing indicator
+        if self.action_cd_remaining <= 0:
+            direction = ['right', 'top-right', 'up', 'top-left', 'left', 'bottom-left', 'down', 'bottom-right']
+            if click_state['left']:
+                mx , my = click_state['pos']
+                dx = mx - self.rect.centerx
+                dy = my - self.rect.centery
+
+                self.facing_angle = math.degrees(math.atan2(-dy, dx)) #-dy because pygame y is flipped
+                # shifts from 0 <-> 44 to -22.5 <-> 22.5 for index 0      
+                index = int((self.facing_angle + 22.5) // 45) % 8 # 22.5 for shifting angle, e.g: without 0 - 44 -> 0 instead turn into (-22.5 + 22.5) to (22.5 + 22.5) -> 0
+                self.facing = direction[index] # convert 24-d to 8-d
+                
+                self.facing_angle = round(self.facing_angle / 15) * 15 # snap to 15*
+
+                # Reset facing after different direction from current direction attack
+                if self.facing in {'right', 'top-right', 'bottom-right'}:
+                    self.facing_right = True
+                if self.facing in {'left', 'top-left', 'bottom-left'}: 
+                    self.facing_right = False
+
+            elif keys[pygame.K_k]:
+                for i in range(8):
+                    if self.facing == direction[i]:
+                        self.facing_angle = i * 45
+
+        # Char facing for direction
+        if self.facing in {'right', 'top-right', 'bottom-right'}: self.facing_right = True
+        if self.facing in {'left', 'top-left', 'bottom-left'}: self.facing_right = False

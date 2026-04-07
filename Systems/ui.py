@@ -1,6 +1,6 @@
 import pygame
-from Shared.utils import get_image
 from Shared.constants import *
+from Shared.utils import get_image
 
 font_size = 40
 UI_FONT = None

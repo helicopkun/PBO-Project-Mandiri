@@ -1,8 +1,8 @@
 import pygame, math, random
 from Shared.constants import*
-from Entities.Particle import spawn_particles
 from Entities.GameObject import GameObject
 from Entities.Bullet import Bullet
+from Entities.Particle import spawn_particles
 
 class Boss(GameObject):
     def __init__(self, name, boss_data, start_x = WIDTH//2, direction = 1): # 1 to go right, -1 to go left 

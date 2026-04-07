@@ -1,8 +1,8 @@
 import random
+from Shared.constants import*
+from Shared.utils import load_json, get_image
 from Entities.GameObject import GameObject
 from Entities.Boss import Boss
-from Shared.utils import load_json, get_image
-from Shared.constants import*
 
 # Stage (Total arena)
 # Arena (Current stage)

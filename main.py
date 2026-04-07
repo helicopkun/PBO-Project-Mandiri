@@ -1,10 +1,10 @@
 import pygame, sys, random
 
-from Entities.Player import Player
-from Entities.Particle import particles
-
 from Shared.constants import*
 from Shared.utils import load_json, circle_collide
+
+from Entities.Player import Player
+from Entities.Particle import particles
 
 from Systems.StageManager import StageManager
 from Systems.ui import init_font, draw_ui
