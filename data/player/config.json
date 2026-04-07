@@ -1,0 +1,25 @@
+{
+    "max_hp" : 15,
+    "grace_duration" : 1.5, 
+    "hitbox" : 15,
+
+    "speedX" : 400,
+    "speedY" : 400,
+    "gravity" : 350,
+    
+    "phase_spd" : 1.5,
+    "phase_max" : 2,
+    "phase_rate" : 0.5,
+    "phase_cd_delay" : 0.6,
+
+    "jump_duration_threshold" : 0.4,                    
+    "jump_recovery_threshold" : 0.15, 
+    "airborne_threshold" : 0.1,
+    "quickfall_plat_threshold" : 0.225,
+    
+    "action_cd_max" : 1.3,
+
+    "absorb_duration" : 0.3,
+    "absorb_cd" : 1,
+    "absorb_radius" : 30
+}
