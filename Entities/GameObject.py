@@ -1,5 +1,5 @@
 import pygame
-from Shared.constants import WHITE, show_img_rect
+from Shared.constants import WHITE, RED, show_img_rect, show_hitbox
 from Shared.utils import get_image
 
 class GameObject: #Combination of Circle and Rect hitbox, based on usage (finished?) todo: will probably change if needed
@@ -12,7 +12,9 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
         self.width = width
         self.height = height
         self.rect = pygame.Rect(0, 0, self.width, self.height)
-        self.rect.center = (x, y)
+        # self.rect.center = (x, y)
+        self.rect.left = x
+        self.rect.bottom = y
         self.posX = float(self.rect.x)
         self.posY = float(self.rect.y)
         
@@ -30,6 +32,7 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
             image_rect = self.image.get_rect(center=self.rect.center)
             surface.blit(self.image, image_rect) 
             if show_img_rect: pygame.draw.rect(surface, WHITE, image_rect, 2)
+            if show_hitbox: pygame.draw.rect(surface, RED, self.rect, 2) # base hitbox
         else: pygame.draw.rect(surface, WHITE, self.rect, 2) # no texture
 
     def draw_hitcircle(self, surface, color = WHITE, hitbox_radius = None, border_width = 2): #draw hitbox circle

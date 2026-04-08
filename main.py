@@ -28,11 +28,11 @@ PlayerTest = Player(name="HelicopKun", attack='slash')
 # Stage Load 
 STAGES_ICY = load_json("stages/icy_cave.json")
 stage = StageManager(STAGES_ICY)
-stage.load_stage()
+stage.load_stage(screen, PlayerTest)
+stage.transitioning = False
 
-#background canvas
-camera = Camera(PlayerTest)
-world_surface = pygame.Surface((BG_WIDTH, BG_HEIGHT))
+camera = Camera(PlayerTest) #screen canvas position
+world_surface = pygame.Surface((BG_WIDTH, BG_HEIGHT)) #background canvas
 
 
 clock = pygame.time.Clock()
@@ -42,7 +42,7 @@ running = True
 # ================================================ Game loop ==========================================================================================================================================
 
 while running:
-    print(clock.get_fps())
+    # print(clock.get_fps())
     dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
 
     # og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
@@ -76,19 +76,28 @@ while running:
                           mouse_pos[1] - cy)
 
     #Update current stage
-    if stage.win: 
-        draw_win(screen)
-        if keys[pygame.K_r]: stage.retry(PlayerTest)
-        continue
-    if stage.lost: 
-        draw_lost(screen)
-        if keys[pygame.K_r]: stage.retry(PlayerTest)
-        continue
+    if stage.lost or stage.win:
+        if keys[pygame.K_r]:
+            print("retry")
+            stage.retry(screen, PlayerTest)
+            cx, cy = camera.get_snap() # snap to default pos (border, ground)
+            clock.tick() #reset clock, so it doesnt make entity teleport
+            continue
 
     if all(not b.alive for b in stage.boss_list):
         if PlayerTest.rect.right >= BG_WIDTH - BG_BORDER_X:
             stage.change_stage(screen, PlayerTest)
-  
+            cx, cy = camera.get_snap()
+            clock.tick()
+            continue
+    
+    if stage.lost: 
+        draw_lost(screen)
+        continue
+    if stage.win: 
+        draw_win(screen)
+        continue
+    
     # Update Entities
     stage.update_entities(dt, PlayerTest)
 

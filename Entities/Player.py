@@ -9,8 +9,8 @@ class Player(GameObject):
         self.config = load_json("player/config.json")
         attack_data = load_json("player/attack.json")
 
-        super().__init__(x= SCREEN_WIDTH//2, y=GROUND_Y-50, width=50, height=100, hitbox_radius=self.config['hitbox'],
-                         image_path="character/"+image, size_offsetx=70, size_offsety=30)
+        super().__init__(x= BG_BORDER_X + 10, y=GROUND_Y, width=80, height=100, hitbox_radius=self.config['hitbox'],
+                         image_path="character/"+image, size_offsetx=50, size_offsety=30)
 
         # elapsed -> stopwatch (0,1,2, until n) counting up <-> threshold
         # timestamp -> records the time an action triggered <-> duration
@@ -65,12 +65,12 @@ class Player(GameObject):
         
         # Movement - freeze when absorbing
         if not self.absorb_active:
-            self.move(keys, dt) 
+            self._move(keys, dt) 
         
-        self.current_state(dt)
+        self._current_state(dt)
 
-        self.facing_indicator(keys, click_state)
-        self.bar_indicator()
+        self._facing_indicator(keys, click_state)
+        self._bar_indicator()
         
         # Actions
         if not (self.is_phasing or self.action_cd_remaining > 0 or self.grace_active):
@@ -79,7 +79,7 @@ class Player(GameObject):
     def draw(self, surface):
         #Character
         self.image = get_image(image_path=self.image_path, flipx=0 if self.facing_right else 1, rect=self.rect, 
-                                                                                            size_offsetx=70, 
+                                                                                            size_offsetx=50, 
                                                                                             size_offsety=30)
         if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
             self.draw_self(surface)
@@ -148,16 +148,16 @@ class Player(GameObject):
         if show_player_hitbox: self.draw_hitcircle(surface, color=YELLOW, hitbox_radius=self.cur_hitbox, border_width=3)
 
     def take_damage(self, particles_list):
+        self.hp -= 1
         if self.hp <= 0:
             self.is_dead = True
             return
-        self.hp -= 1
         self.grace_timestamp = pygame.time.get_ticks()
         self.grace_active = True
         spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, particles_list, 10)
         self.is_hit = True
 
-    def current_state(self, dt): #Update cooldown, grace, duration
+    def _current_state(self, dt): #Update cooldown, grace, duration
         self.is_hit = False
         #Check phasing for hitbox radius
         if self.is_phasing: self.cur_hitbox = 0
@@ -180,7 +180,7 @@ class Player(GameObject):
 
         # Attack
         for atk in reversed(self.active_attacks): # read in reverse for safely removing atk
-            self.attacking(atk)
+            self._attacking(atk)
 
 
     def actions(self, keys, click_state):
@@ -205,7 +205,7 @@ class Player(GameObject):
                 self.rect.centery + math.sin(-angle) * offset_dist
             )
             self.copy_rect = self.rect.copy()
-            base_hitboxes = self.generate_attack_hitbox() # pathway for active hitbox
+            base_hitboxes = self._generate_attack_hitbox() # pathway for active hitbox
             new_attack = { # get data for attack
                 'type': self.attack_type,
                 'type_data': self.attack_type_data,
@@ -251,7 +251,7 @@ class Player(GameObject):
         enemy.take_damage(atk_type['damage'], particle_list)
 
 
-    def attacking(self, atk): #generate active frame hitbox for specific attack
+    def _attacking(self, atk): #generate active frame hitbox for specific attack
         atk['active_hitboxes'].clear()# Reset active hitboxes every frame
         start_frame = atk['type_data']['active_frames'][0]
         end_frame = atk['type_data']['active_frames'][1]
@@ -274,7 +274,7 @@ class Player(GameObject):
             else: # Default fallback (Spin / All at once)
                 atk['active_hitboxes'] = atk['hitboxes'].copy()
             
-    def generate_attack_hitbox(self): # generate chain hitbox trajectory, not needing atk data because only load ONCE during the trigger phase
+    def _generate_attack_hitbox(self): # generate chain hitbox trajectory, not needing atk data because only load ONCE during the trigger phase
         n = 7  # more = smoother coverage
 
         if self.attack_type == 'slash':
@@ -303,7 +303,7 @@ class Player(GameObject):
             hitbox_list.append(rect)
         return hitbox_list
     
-    def bar_indicator(self):
+    def _bar_indicator(self):
         # Action bar update
         self.action_bar_rectMax = pygame.Rect(0, 0, 10, 
                                         self.rect.height / 2 * self.config['action_cd_max'])
@@ -324,7 +324,7 @@ class Player(GameObject):
                                         self.phase_bar_rectMax.height)
 
 
-    def on_platform(self):
+    def _on_platform(self):
         for platform in self.platform_group:
             if self.rect.right > platform.rect.left and self.rect.left < platform.rect.right: # ketika ujung player memasuki area platform
                 if self.rect.bottom >= platform.rect.top and self.old_bottom <= platform.rect.top + 10:
@@ -333,8 +333,8 @@ class Player(GameObject):
         self.current_platform = self.platform_group[0]
         return False
     
-    def move(self, keys, dt):
-        on_plat = self.on_platform() #cache on_plat if dont need to check all the time
+    def _move(self, keys, dt):
+        on_plat = self._on_platform() #cache on_plat if dont need to check all the time
         self.old_bottom = self.rect.bottom # save old footing
             
         #Phasing movement
@@ -372,7 +372,7 @@ class Player(GameObject):
             self.rect.right = min(BG_WIDTH - BG_BORDER_X, self.rect.right)
             
             self.rect.centery += dy * self.config['speedY'] * dt * self.config['phase_spd']
-            self.rect.top = max(0, self.rect.top)
+            self.rect.top = max(BG_BORDER_Y, self.rect.top)
             self.rect.bottom = min(GROUND_Y, self.rect.bottom)
             
             return          #agar tidak double dari movement biasa 
@@ -403,12 +403,12 @@ class Player(GameObject):
             allow_quickfall = self.quickfall_plat_elapsed >= self.config['quickfall_plat_threshold']
             self.rect.centery += self.config['speedY'] * dt
 
-            if self.on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
+            if self._on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
                 self.rect.bottom = self.current_platform.rect.top #clamp to cur plat
             else:
                 self.rect.bottom = min(GROUND_Y, self.rect.bottom)
 
-        if keys[pygame.K_s] and self.on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
+        if keys[pygame.K_s] and self._on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
         else :                                      self.quickfall_plat_elapsed = 0
 
         if keys[pygame.K_w] and on_plat and not self.is_jumping:
@@ -420,39 +420,24 @@ class Player(GameObject):
         if self.is_jumping:
             if keys[pygame.K_w] and not keys[pygame.K_s] and self.jump_duration_elapsed < self.config['jump_duration_threshold']:  # Durasi lompat jika di tahan -> sampai max                            
                 self.rect.centery -= self.config['speedY'] * dt
-                self.rect.top = max(0, self.rect.top)
+                self.rect.top = max(BG_BORDER_Y, self.rect.top)
                 self.jump_duration_elapsed += dt
             else: # Jika w berhenti ditahan, quick-fall, mencapai batas max = sudah tidak jumping
                 self.is_jumping = False
 
         #Reset airborne, cooldown jump, etc jika berada di platform
-        if self.on_platform() and not (self.is_jumping):
+        if self._on_platform() and not (self.is_jumping):
             self.jump_recovery_elapsed += dt
             self.airborne_elapsed = 0
                  
         #Gravitasi
-        if not (self.on_platform() or self.is_jumping):
+        if not (self._on_platform() or self.is_jumping):
             self.airborne_elapsed += dt # set airborne
             if self.airborne_elapsed > self.config['airborne_threshold']: #stop airborne if airborne_elapsed = max
                 slowing = self.config['gravity']/2 if keys[pygame.K_w] else 0 
                 self.rect.centery += (self.config['gravity'] - slowing) * dt
                 self.rect.bottom = min(GROUND_Y, self.rect.bottom)
 
-
-
-        # #Trying accel was a bad idea i think
-        # # #Horizontal movement
-        # target_vx = 0
-        # accel = self.config['accel'] 
-
-        # if keys[pygame.K_a] and not keys[pygame.K_d]: target_vx = -self.config['speedX']
-        # if keys[pygame.K_d] and not keys[pygame.K_a]: target_vx =  self.config['speedX']
-
-        # self.vx += (target_vx - self.vx) * accel * dt
-
-        # self.rect.centerx += self.vx * dt
-        # self.rect.left  = max(0, self.rect.left)
-        # self.rect.right = min(WORLD_WIDTH, self.rect.right)
 
         # # #Vertical movement
         # if keys[pygame.K_w] and on_plat and not self.is_jumping:
@@ -466,7 +451,7 @@ class Player(GameObject):
         #     self.vy *= 0.85
 
         # #Gravitasi
-        # if not self.on_platform() :
+        # if not self._on_platform() :
         #     self.airborne_elapsed += dt # set airborne
         #     if self.airborne_elapsed > self.config['airborne_threshold']: #stop airborne if airborne_elapsed = max
         #         slowing = self.config['gravity']/2 if keys[pygame.K_w] else 0
@@ -477,7 +462,7 @@ class Player(GameObject):
         # self.rect.bottom = min(self.current_platform.rect.top, self.rect.bottom)
         
         # #Landed
-        # if self.on_platform():
+        # if self._on_platform():
         #     self.jump_recovery_elapsed += dt
         #     self.airborne_elapsed = 0
         #     self.is_jumping = False
@@ -487,15 +472,15 @@ class Player(GameObject):
         #     allow_quickfall = self.quickfall_plat_elapsed >= self.config['quickfall_plat_threshold']
         #     self.rect.centery += self.config['speedY'] * dt
 
-        #     if self.on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
+        #     if self._on_platform() and not allow_quickfall: #use function because need to always check (input and cache delay shenanigans)
         #         self.rect.bottom = self.current_platform.rect.top #clamp to cur plat
         #     else:
         #         self.rect.bottom = min(GROUND_Y, self.rect.bottom)
 
-        # if keys[pygame.K_s] and self.on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
+        # if keys[pygame.K_s] and self._on_platform(): self.quickfall_plat_elapsed += dt #delay quickfall between platform
         # else :                                      self.quickfall_plat_elapsed = 0
 
-    def facing_indicator(self, keys, click_state):
+    def _facing_indicator(self, keys, click_state):
         #Movement facing indicator
         if not self.absorb_active:
             if pygame.time.get_ticks() - self.look_attack_timestamp >= 400: # only works after for when just launching attack
@@ -517,7 +502,7 @@ class Player(GameObject):
                     if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing = 'bottom-right'
                     if keys[pygame.K_a] and not keys[pygame.K_d]: self.facing = 'bottom-left'
                 
-                if pygame.time.get_ticks() - self.look_jump_timestamp >= 400: # delay after jump
+                if pygame.time.get_ticks() - self.look_jump_timestamp >= 250: # delay after jump
                     self.facing = 'right' if self.facing_right else 'left'
                 
         # Attack facing indicator

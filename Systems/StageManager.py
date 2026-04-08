@@ -14,7 +14,6 @@ class StageManager:
     def __init__(self, stages_data):
         self.win = False
         self.lost = False
-        self.transitioning = False
         self.stages_data = stages_data
         self.total_stage = len(stages_data)
         self.stage_counter = 1
@@ -28,11 +27,9 @@ class StageManager:
         if player.is_dead: 
             self.lost = True
             return
-        
-        for b in self.boss_list:
-            if self.transitioning: break
-            b.update(dt, player, self.bullet_list)
 
+        for b in self.boss_list:
+            b.update(dt, player, self.bullet_list)
 
             for atk in player.active_attacks:
                 for hitbox in atk['active_hitboxes']:
@@ -43,7 +40,6 @@ class StageManager:
                     if atk['target'][enemy] > 0:
                         atk['target'][enemy] -= dt    
                     
-                        
         for p in self.particles[:]: #safely remove with copying list
             p.update(dt)
             if p.lifetime <= 0:
@@ -54,7 +50,7 @@ class StageManager:
 
             if bullet.out_of_bounds():
                 self.bullet_list.remove(bullet)
-                return
+                continue
             
             #Check i-frame & kolisi player
             if circle_collide(player.rect.center, player.cur_hitbox, bullet.rect.center, bullet.hitbox_radius):
@@ -62,43 +58,42 @@ class StageManager:
                 if player.absorb_active and not player.is_phasing: 
                     player.absorbed(bullet, self.particles)
                     self.bullet_list.remove(bullet)
-                    return
+                    continue
                 
                 # Got hit
                 if not player.is_phasing and not player.grace_active: #grace_active = grace active or not
                     player.take_damage(self.particles)
                     self.bullet_list.remove(bullet)
-                    return
+                    continue
 
     def draw_stage(self, surface):
         bg_rect = surface.get_rect()
         surface.blit(self.bg, bg_rect)
 
         for platform in self.plat_list:
-            if show_hitbox: pygame.draw.rect(surface, BROWN, platform.rect) #hitbox
             platform.draw_self(surface)
         
     def draw_entities(self, surface):
         for bullet in self.bullet_list:
             bullet.draw_self(surface)
-            if show_bullet_hitbox: bullet.draw_hitcircle(surface, RED)
+            if show_bullet_hitbox: bullet.draw_hitcircle(surface, YELLOW)
 
         for b in self.boss_list:
             b.draw(surface)
-            if show_hitbox: pygame.draw.rect(surface, RED, b.rect, 2) # boss hitbox
         
         for p in self.particles:
             p.draw(surface)
 
-    def load_stage(self):
-        self.boss_list.clear()
+    def load_stage(self, surface, player):
+        self._reset_entities(player)
+
         cur_stage = self.stages_data[str(self.stage_counter)]
  
         bg = "background/" + cur_stage['bg']
         self.bg = get_image(bg, size_offsetx=BG_WIDTH, size_offsety=BG_HEIGHT)
 
         main_plat_img = "platform/" + cur_stage['main_plat_img']
-        MainPlatform = GameObject(0, 0, SCREEN_WIDTH, 250, size_offsetx=200, image_path=main_plat_img,
+        MainPlatform = GameObject(0, 0, BG_WIDTH-BG_BORDER_X*2, 250, size_offsetx=200, image_path=main_plat_img,
                                                            size_offsety=1000)
         MainPlatform.rect.centerx = BG_WIDTH//2
         MainPlatform.rect.top = GROUND_Y
@@ -113,23 +108,28 @@ class StageManager:
                 self.boss_list.append(self._generate_random_boss())
             else:
                 boss_data = load_json(f"bosses/{b}.json")
-                new_boss = Boss(b, boss_data, random.uniform(BG_BORDER_X, BG_WIDTH - BG_BORDER_X), random.choice([1 , -1]))
+                new_boss = Boss(b, boss_data, random.uniform(BG_BORDER_X + 1000, BG_WIDTH - BG_BORDER_X), random.choice([1 , -1]))
                 self.boss_list.append(new_boss)
-        
-                
 
+        self._stage_transition(surface)
+        
     def change_stage(self, surface, player):
         self.stage_counter += 1
         if self.stage_counter <= self.total_stage:
-            self._reset_entities(player)
-            self.load_stage()
-            self._stage_transition(surface)
-            self.transitioning = False
+            self.load_stage(surface, player)
         else: 
             self.win = True
-            
+
+    def retry(self, surface, player):
+        self.win = False
+        self.lost = False
+        player.hp = player.max_hp
+        player.is_dead = False
+        self.stage_counter = 1
+        self.load_stage(surface, player)
+
+
     def _stage_transition(self, surface): #surface surface
-        self.transitioning = True
         font = get_font(72)
         text = font.render(f"Stage {self.stage_counter}", True, (255, 255, 255))
         text_rect = text.get_rect(center=(surface.get_width() // 2, surface.get_height() // 2))
@@ -157,16 +157,10 @@ class StageManager:
             pygame.display.flip()
             pygame.time.delay(10)
 
-    def retry(self, player):
-        self.win = False
-        self.lost = False
-        self._reset_entities(player)
-        self.stage_counter = 1
-        self.load_stage()
-
     def _reset_entities(self, player):
         self.particles.clear()
         self.bullet_list.clear()
+        self.boss_list.clear()
         player.active_attacks.clear()
         player.rect.left = BG_BORDER_X + 10
         player.rect.bottom = GROUND_Y
@@ -175,7 +169,7 @@ class StageManager:
         plat_size_offsetx=65
         plat_size_offsety=250
         image = "platform/" + image
-        self.plat_list.append(GameObject(BG_BORDER_X + coordinate[0] , (GROUND_Y - coordinate[1]), 500, image_path=image, 
+        self.plat_list.append(GameObject(BG_BORDER_X + coordinate[0] + 50 , (GROUND_Y - coordinate[1]), 300, image_path=image, 
                                          size_offsetx=plat_size_offsetx, size_offsety=plat_size_offsety))
     
     def _generate_boss_data(self, num_phases=None): # generate boss stat randomly
@@ -191,7 +185,7 @@ class StageManager:
         boss_data['size'] = size
         boss_data['color'] = color
         boss_phase = {}
-        patterns = ['circle', 'chaos', 'random', 'fan']
+        patterns = ['circle', 'chaos', 'random', 'fan', 'spiral', 'burst', 'cross', 'aimed']
         images = ['bullet-1', 'bullet-2', 'bullet-3', 'bullet-orb']
         max_bullet = 7
         max_rate = 1.0
@@ -209,6 +203,7 @@ class StageManager:
                 'bullet_img': random.choice(images)
             }
         boss_data['phase'] = boss_phase
+
         return boss_data
 
     def _generate_random_boss(self):

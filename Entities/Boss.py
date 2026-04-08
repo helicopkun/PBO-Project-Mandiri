@@ -14,7 +14,7 @@ class Boss(GameObject):
         image = boss_data['boss_img']
         self.circle_color = boss_data['color']
         # data phase 1
-        start_y = self.phases[str(self.current_phase)]['y_axis']
+        start_y = GROUND_Y - self.phases[str(self.current_phase)]['y_axis']
         super().__init__(x=start_x, y=start_y, width=size, height=size, hitbox_radius=30, image_path="boss/" + image, 
                                                                                     size_offsetx=125, size_offsety=125)
         self.name = name
@@ -31,6 +31,7 @@ class Boss(GameObject):
 
         self.direction = direction # 1 for right, -1 for left
         self.fire_timer = 0
+        self.spiral_angle = 0
         
     def update(self, dt, player, bullet_list):
         if not self.alive: return
@@ -40,14 +41,14 @@ class Boss(GameObject):
 
         phase = self.phases[str(self.current_phase)]
 
-        self.move(dt, phase)
+        self._move(dt, phase)
             
         # Shooting logic
         self.fire_timer -= dt
         if self.fire_timer <= 0:
             self.fire_timer = phase['rate']
             if pygame.time.get_ticks() - player.grace_timestamp >= 1000: #delay after player get hit and first spawn
-                self.shoot(player, bullet_list, phase)
+                self._shoot(player, bullet_list, phase)
             
     def draw(self, surface):
         if not self.alive: return
@@ -56,10 +57,11 @@ class Boss(GameObject):
             self.draw_hitcircle(surface, color, 6) #draw hitbox here is more like indicator in the middle, color for phase color
             self.draw_self(surface)
     
-    def move(self, dt, phase):
+    def _move(self, dt, phase):
         #Transition phase movement
-        if abs(self.base_y - phase['y_axis']) > 2:
-            if self.base_y < phase['y_axis']:
+        new_axis = GROUND_Y - phase['y_axis']
+        if abs(self.base_y - new_axis) > 2:
+            if self.base_y < new_axis:
                 self.base_y += 100 * dt
             else:
                 self.base_y -= 100 * dt
@@ -77,7 +79,7 @@ class Boss(GameObject):
         elif self.rect.left < BG_BORDER_X:
             self.direction = 1
 
-    def shoot(self, player, bullet_list, phase_data):
+    def _shoot(self, player, bullet_list, phase_data):
         pattern = phase_data['pattern']
         num_bullets = phase_data['num_bullet']
         spd = phase_data['bullet_spd']
@@ -140,6 +142,59 @@ class Boss(GameObject):
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
                 bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
+        
+        elif pattern == 'spiral':
+            # Circle ring that rotates each shot — looks like spinning arms at fast fire rates
+            # num_bullet controls arms, rate controls spin speed
+            step = (math.pi * 2) / num_bullets
+            for i in range(num_bullets):
+                a = step * i + self.spiral_angle
+                bx = math.cos(a) * spd
+                by = math.sin(a) * spd
+                angle = -math.degrees(math.atan2(by, bx))
+                angle = round(angle / 5) * 5
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
+            self.spiral_angle += math.radians(20)  # rotate 20 degrees each shot
+ 
+        elif pattern == 'burst':
+            # Shotgun — tight cluster aimed at player with slight random noise per bullet
+            # Feels different from fan: tighter, noisier, more panic-inducing
+            angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
+            for i in range(num_bullets):
+                noise = random.uniform(-0.12, 0.12)  # ~7 degree noise
+                a = angle_to_player + noise
+                bx = math.cos(a) * spd
+                by = math.sin(a) * spd
+                angle = -math.degrees(math.atan2(by, bx))
+                angle = round(angle / 5) * 5
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
+ 
+        elif pattern == 'cross':
+            # Rotated circle — always has one arm pointing at the player
+            # num_bullet = number of arms (use 4 or 8)
+            angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
+            step = (math.pi * 2) / num_bullets
+            for i in range(num_bullets):
+                a = angle_to_player + step * i
+                bx = math.cos(a) * spd
+                by = math.sin(a) * spd
+                angle = -math.degrees(math.atan2(by, bx))
+                angle = round(angle / 5) * 5
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
+ 
+        elif pattern == 'aimed':
+            # Precise high-speed shots directly at the player
+            # num_bullet = 1 is a single sniper shot, 2-3 adds a narrow flanking pair
+            # Very different from fan — no forgiveness if player doesn't move
+            angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
+            for i in range(num_bullets):
+                offset = (i - num_bullets // 2) * math.radians(8)  # 8 degrees between each
+                a = angle_to_player + offset
+                bx = math.cos(a) * spd
+                by = math.sin(a) * spd
+                angle = -math.degrees(math.atan2(by, bx))
+                angle = round(angle / 5) * 5
+                bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
                 
     def take_damage(self, atk_dmg, particles_list):
         self.hp -= atk_dmg
@@ -148,9 +203,9 @@ class Boss(GameObject):
         spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, particles_list, 10) # Hit feedback
         if self.hp <= 0:
             self.current_phase += 1
-            self.change_phase(particles_list)
+            self._change_phase(particles_list)
             
-    def change_phase(self, particles_list):
+    def _change_phase(self, particles_list):
         spawn_particles(self.rect.centerx, self.rect.centery, RED,  particles_list, count=30, is_burst=True) # Trigger massive death particle burst each transition 
         if self.current_phase > self.total_phases:
             self.alive = False

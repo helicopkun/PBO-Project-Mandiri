@@ -4,19 +4,19 @@
     "color": [0, 255, 255],
 
     "phase": {
-        "1": {"max_hp": 1.35, "move_speed": 100, "y_axis": 150, "rate": 1.5, "pattern": "circle", 
+        "1": {"max_hp": 35, "move_speed": 100, "y_axis": 150, "rate": 1.5, "pattern": "circle", 
             "num_bullet": 5, "bullet_spd": 300, "bullet_size": 10,"bullet_img": "bullet-1"},
 
-        "2": {"max_hp": 1.38, "move_speed": 200, "y_axis": 250, "rate": 2, "pattern": "random", 
+        "2": {"max_hp": 38, "move_speed": 200, "y_axis": 250, "rate": 2, "pattern": "random", 
             "num_bullet": 5, "bullet_spd": 350, "bullet_size": 8, "bullet_img": "bullet-3"},
 
-        "3": {"max_hp": 1.36, "move_speed": 250, "y_axis": 350, "rate": 1.0, "pattern": "circle", 
+        "3": {"max_hp": 36, "move_speed": 250, "y_axis": 350, "rate": 1.0, "pattern": "circle", 
             "num_bullet": 8, "bullet_spd": 400, "bullet_size": 15, "bullet_img": "bullet-2"},
 
-        "4": {"max_hp": 1.34, "move_speed": 100, "y_axis": 400, "rate": 0.8, "pattern": "fan", 
+        "4": {"max_hp": 34, "move_speed": 100, "y_axis": 400, "rate": 0.8, "pattern": "fan", 
             "num_bullet": 7, "bullet_spd": 400, "bullet_size": 7, "bullet_img": "bullet-2"},
 
-        "5": {"max_hp": 1.33, "move_speed": 550, "y_axis": 150, "rate": 0.4, "pattern": "chaos", 
+        "5": {"max_hp": 33, "move_speed": 550, "y_axis": 150, "rate": 0.4, "pattern": "chaos", 
             "num_bullet": 8, "bullet_spd": 450, "bullet_size": 9, "bullet_img": "bullet-orb"}
     }
 }

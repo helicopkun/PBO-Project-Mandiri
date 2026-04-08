@@ -1,5 +1,5 @@
 {
-    "max_hp" : 15,
+    "max_hp" : 500,
     "grace_duration" : 1.5, 
     "hitbox" : 15,
     
