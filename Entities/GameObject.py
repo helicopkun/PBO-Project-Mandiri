@@ -1,5 +1,5 @@
 import pygame
-from Shared.constants import*
+from Shared.constants import WHITE, show_img_rect
 from Shared.utils import get_image
 
 class GameObject: #Combination of Circle and Rect hitbox, based on usage (finished?) todo: will probably change if needed

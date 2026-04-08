@@ -4,13 +4,13 @@
     "color": [0, 255, 255],
 
     "phase": {
-        "1": {"max_hp": 16, "move_speed": 350, "y_axis": 200, "rate": 0.8, "pattern": "chaos", 
+        "1": {"max_hp": 1.16, "move_speed": 350, "y_axis": 200, "rate": 0.8, "pattern": "chaos", 
             "num_bullet": 4, "bullet_spd": 400, "bullet_size": 8, "bullet_img": "bullet-3"},
 
-        "2": {"max_hp": 18, "move_speed": 100, "y_axis": 450, "rate": 0.5, "pattern": "random", 
+        "2": {"max_hp": 1.18, "move_speed": 100, "y_axis": 450, "rate": 0.5, "pattern": "random", 
             "num_bullet": 3, "bullet_spd": 300, "bullet_size": 12, "bullet_img": "bullet-1"},
 
-        "3": {"max_hp": 20, "move_speed": 400, "y_axis": 150, "rate": 1.2, "pattern": "circle", 
+        "3": {"max_hp": 1.20, "move_speed": 400, "y_axis": 150, "rate": 1.2, "pattern": "circle", 
             "num_bullet": 16, "bullet_spd": 250, "bullet_size": 6, "bullet_img": "bullet-3"}
 
     }

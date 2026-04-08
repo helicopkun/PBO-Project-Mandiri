@@ -1,9 +1,14 @@
-WIDTH = 1920
-HEIGHT = 1080
-GROUND_Y = HEIGHT - 250
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
+
+BG_WIDTH = SCREEN_WIDTH + 400
+BG_HEIGHT = SCREEN_HEIGHT + 200
+
+GROUND_Y = BG_HEIGHT - 250
+BG_BORDER_X = (BG_WIDTH - SCREEN_WIDTH) // 2   # = 200
 
 #Debugging
-show_hitbox = False
+show_hitbox = True
 show_player_hitbox = False
 show_bullet_hitbox = True
 show_atk_hitbox = True

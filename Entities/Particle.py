@@ -24,7 +24,6 @@ class Particle:
             current_size = max(0.1, self.size * (self.lifetime / self.max_lifetime)) # Slowly shrink
             pygame.draw.rect(surface, self.color, (self.x, self.y, current_size, current_size))
 
-def spawn_particles(x, y, color, count=5, is_burst=False):
+def spawn_particles(x, y, color, particles_list, count=5, is_burst=False):
     for i in range(count):
-        particles.append(Particle(x, y, color, is_burst))
-particles = []
+        particles_list.append(Particle(x, y, color, is_burst))

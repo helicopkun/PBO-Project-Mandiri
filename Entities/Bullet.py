@@ -1,4 +1,4 @@
-from Shared.constants import*
+from Shared.constants import CYAN, BG_WIDTH, BG_HEIGHT
 from Entities.GameObject import GameObject
 
           
@@ -17,4 +17,4 @@ class Bullet(GameObject):
         self.rect.centery += self.vy * dt
         
     def out_of_bounds(self):
-        return self.rect.right < -50 or self.rect.left > WIDTH + 50 or self.rect.top > HEIGHT or self.rect.bottom < -50
+        return self.rect.right < -50 or self.rect.left > BG_WIDTH + 50 or self.rect.top > BG_HEIGHT or self.rect.bottom < -50

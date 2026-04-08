@@ -1,47 +1,39 @@
 import pygame, sys, random
 
 from Shared.constants import*
-from Shared.utils import load_json, circle_collide
+from Shared.utils import load_json
 
 from Entities.Player import Player
-from Entities.Particle import particles
 
+from Systems.Camera import Camera
 from Systems.StageManager import StageManager
-from Systems.ui import init_font, draw_ui
+from Systems.ui import init_font, draw_ui, draw_win, draw_lost
 
 pygame.init()
 init_font()
 
-
-screen = pygame.display.set_mode((WIDTH, HEIGHT)) # Untuk UI
+screen_size = (SCREEN_WIDTH, SCREEN_HEIGHT) #just keep it 720p bro
+screen = pygame.display.set_mode(screen_size) # Untuk UI dan lebar screen
 pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name for ts
 # Maidenless ~ a reference to Elden ring where the npc calls us maidenless
 # Danmaku ~ bullet hell in japanese
 
 # ================================================ Game loop setup ==========================================================================================================================================
 
-# Stage Load 
-STAGES_ICY = load_json("stages/icy_cave.json")
-stage = StageManager(STAGES_ICY)
-stage.load_stage()
-
-
 # Player Load 
 attack_type = load_json("player/attack.json")
 PlayerTest = Player(name="HelicopKun", attack='slash')
 #might do hotbar inventory-based attacks 1.slash, 2.Pierce, 3...
 
+# Stage Load 
+STAGES_ICY = load_json("stages/icy_cave.json")
+stage = StageManager(STAGES_ICY)
+stage.load_stage()
 
-# Screen Shake Variables
-shake_timer = 0
-world_surface = pygame.Surface((WIDTH, HEIGHT))
+#background canvas
+camera = Camera(PlayerTest)
+world_surface = pygame.Surface((BG_WIDTH, BG_HEIGHT))
 
-#Debugging
-show_hitbox = False
-show_player_hitbox = False
-show_bullet_hitbox = True
-show_atk_hitbox = True
-show_img_rect = False
 
 clock = pygame.time.Clock()
 time_scale = 1.0
@@ -68,111 +60,55 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-
+    #Update input
+    cx, cy = camera.get_offset()
     keys = pygame.key.get_pressed()
-
     click_state = {
         'left': False,
         'right': False,
         'pos': None
     }
-
     mouse_buttons = pygame.mouse.get_pressed()
     mouse_pos = pygame.mouse.get_pos()
-
     click_state['left'] = mouse_buttons[0]
     click_state['right'] = mouse_buttons[2]
-    click_state['pos'] = mouse_pos
-    
+    click_state['pos'] = (mouse_pos[0] - cx,
+                          mouse_pos[1] - cy)
+
+    #Update current stage
+    if stage.win: 
+        draw_win(screen)
+        if keys[pygame.K_r]: stage.retry(PlayerTest)
+        continue
+    if stage.lost: 
+        draw_lost(screen)
+        if keys[pygame.K_r]: stage.retry(PlayerTest)
+        continue
+
     if all(not b.alive for b in stage.boss_list):
-        if not stage.stage_counter > stage.total_stage:
-            stage.change_stage()
-            continue
-
+        if PlayerTest.rect.right >= SCREEN_WIDTH:
+            stage.change_stage(screen, PlayerTest)
+  
     # Update Entities
+    stage.update_entities(dt, PlayerTest)
+
+    if PlayerTest.is_hit: camera.trigger_shake()
+    camera.update(dt)
+    cx, cy = camera.get_offset()
+
     PlayerTest.update(keys, click_state, dt, stage.plat_list)
-
-    for b in stage.boss_list:
-        b.update(dt, PlayerTest, stage.bullet_list)
-
-
-        for atk in PlayerTest.active_attacks:
-            for hitbox in atk['active_hitboxes']:
-                if hitbox.colliderect(b.rect):
-                    PlayerTest.attacked(b, atk)
-
-            for enemy in list(atk['target']): #reduce tick_rate cd 
-                if atk['target'][enemy] > 0:
-                    atk['target'][enemy] -= dt    
-                    
-                        
-    for p in particles[:]: #safely remove with copying list
-        p.update(dt)
-        if p.lifetime <= 0:
-            particles.remove(p)
     
-    # show_hitbox = True if len(bullet_list) > 20 else False 
-    for bullet in stage.bullet_list[:]: #safely remove with copying list
-        bullet.update(dt)
-
-        if bullet.out_of_bounds():
-            if stage.bullet_list: stage.bullet_list.remove(bullet)
-            continue
-
-        #Check i-frame & kolisi player
-        current_radius = PlayerTest.hitbox_radius + (PlayerTest.absorb_radius if PlayerTest.absorb_active else 0) 
-        if circle_collide(PlayerTest.rect.center, current_radius, bullet.rect.center, bullet.hitbox_radius):
-            # Absorb
-            if PlayerTest.absorb_active and not PlayerTest.is_phasing: 
-                PlayerTest.absorbed(bullet)
-                if stage.bullet_list: stage.bullet_list.remove(bullet)
-                continue
-            
-            # Got hit
-            if not PlayerTest.is_phasing and not PlayerTest.grace_active: #grace_active = grace active or not
-                if stage.bullet_list: stage.bullet_list.remove(bullet)
-                stage.bullet_list.clear() #remove all bullet
-                shake_timer = 0.25 # Trigger Screen Shake
-                if PlayerTest.hp <= 0:
-                    print("GAME OVER") # will make a retry/quit button
-                    #running = False
-                continue
-    
-    if shake_timer > 0:
-        shake_timer -= dt
 
     
-    # Draw objects 
-    world_surface.blit(stage.bg, (0,0))
-    
-    for platform in stage.plat_list:
-        if show_hitbox: pygame.draw.rect(world_surface, BROWN, platform.rect) #hitbox
-        platform.draw_self(world_surface)
-    
+    # Draw objects
+    stage.draw_stage(world_surface)
+
     PlayerTest.draw(world_surface)
-    if show_player_hitbox: PlayerTest.draw_hitcircle(world_surface, color=YELLOW, hitbox_radius=PlayerTest.hitbox_radius, border_width=3)
 
-    for bullet in stage.bullet_list:
-        bullet.draw_self(world_surface)
-        if show_bullet_hitbox: bullet.draw_hitcircle(world_surface, RED)
-
-    for b in stage.boss_list:
-        b.draw(world_surface)
-        if show_hitbox: pygame.draw.rect(world_surface, RED, b.rect, 2) # boss hitbox
-       
-    for p in particles:
-        p.draw(world_surface)
-
-    # Apply Screen Shake to final render
-    shake_x, shake_y = 0, 0
-    if shake_timer > 0:
-        shake_intensity = 8
-        shake_x = random.randint(-shake_intensity, shake_intensity)
-        shake_y = random.randint(-shake_intensity, shake_intensity)
-        
-    screen.blit(world_surface, (shake_x, shake_y))
+    stage.draw_entities(world_surface)
     
-    # Draw UI on top of everything (we don't want the UI to shake)
+    screen.blit(world_surface, (cx, cy))
+    
     draw_ui(screen, PlayerTest, stage.boss_list)
 
     pygame.display.update()

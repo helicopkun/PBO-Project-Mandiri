@@ -5,7 +5,7 @@ from Entities.Bullet import Bullet
 from Entities.Particle import spawn_particles
 
 class Boss(GameObject):
-    def __init__(self, name, boss_data, start_x = WIDTH//2, direction = 1): # 1 to go right, -1 to go left 
+    def __init__(self, name, boss_data, start_x = SCREEN_WIDTH//2, direction = 1): # 1 to go right, -1 to go left 
         self.boss_data = boss_data
         self.phases = boss_data['phase']                                                                                  
         self.total_phases = len(self.phases)
@@ -46,7 +46,7 @@ class Boss(GameObject):
         self.fire_timer -= dt
         if self.fire_timer <= 0:
             self.fire_timer = phase['rate']
-            if pygame.time.get_ticks() - player.grace_timestamp >= 1000: #delay after player get hit & first spawn
+            if pygame.time.get_ticks() - player.grace_timestamp >= 1000: #delay after player get hit and first spawn
                 self.shoot(player, bullet_list, phase)
             
     def draw(self, surface):
@@ -72,7 +72,7 @@ class Boss(GameObject):
 
         # Movement Flight Loop (Left/Right)
         self.rect.x += phase['move_speed'] * self.direction * dt
-        if self.rect.right > WIDTH - 100:
+        if self.rect.right > SCREEN_WIDTH - 100:
             self.direction = -1
         elif self.rect.left < 100:
             self.direction = 1
@@ -123,12 +123,12 @@ class Boss(GameObject):
             for i in range(num_bullets):
                 side = random.choice(['top', 'right', 'left'])
                 if side == 'top': # Fall down
-                    cx = random.randint(0, WIDTH) 
+                    cx = random.randint(0, BG_WIDTH) 
                     cy = -20
                     bx = random.uniform(-100, 100)
                     by = random.uniform(150, 300) 
                 elif side == 'right': # Move left
-                    cx = WIDTH + 20
+                    cx = BG_WIDTH + 20
                     cy = random.randint(0, GROUND_Y)
                     bx = random.uniform(-300, -150) 
                     by = random.uniform(-50, 50)
@@ -141,20 +141,20 @@ class Boss(GameObject):
                 angle = round(angle / 5) * 5
                 bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
                 
-    def take_damage(self, atk_dmg):
+    def take_damage(self, atk_dmg, particles_list):
         self.hp -= atk_dmg
         self.grace_timestamp = pygame.time.get_ticks()
         self.grace_active = True
-        spawn_particles(self.rect.centerx, self.rect.centery, color=RED2_0, count=10) # Hit feedback
+        spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, particles_list, 10) # Hit feedback
         if self.hp <= 0:
             self.current_phase += 1
-            self.change_phase()
+            self.change_phase(particles_list)
             
-    def change_phase(self):
-        spawn_particles(self.rect.centerx, self.rect.centery, color=RED, count=30, is_burst=True) # Trigger massive death particle burst each transition 
+    def change_phase(self, particles_list):
+        spawn_particles(self.rect.centerx, self.rect.centery, RED,  particles_list, count=30, is_burst=True) # Trigger massive death particle burst each transition 
         if self.current_phase > self.total_phases:
             self.alive = False
-            spawn_particles(self.rect.centerx, self.rect.centery, color=RED2_0, count=50, is_burst=True)
+            spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, particles_list, count=50, is_burst=True)
         else:
             self.max_hp = self.phases[str(self.current_phase)]['max_hp']
             self.hp = self.max_hp

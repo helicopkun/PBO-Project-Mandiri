@@ -26,18 +26,18 @@ image_cache = {}
 def get_image(image_path, rect=None, # load or make a new image in cache (into the assigned rectangle if available)
                flipx = 0, flipy = 0, angle = 0, 
                size_offsetx = 0, size_offsety = 0): # offset for minor adjustment, not needed if image is edited on figma
-    scale = None
+    size = None
     if rect: 
-        scale = (rect.width + size_offsetx, rect.height + size_offsety) #size based on rect
+        size = (rect.width + size_offsetx, rect.height + size_offsety) #size based on rect
     elif size_offsetx or size_offsety: 
-        scale = (size_offsetx, size_offsety) # size only
+        size = (size_offsetx, size_offsety) # size only
 
-    key = (image_path, scale, flipx, flipy, angle)
+    key = (image_path, size, flipx, flipy, angle)
  
     if key not in image_cache:
         image = load_asset(image_path)
         image = pygame.transform.flip(image, flipx, flipy)
-        if scale: image = pygame.transform.scale(image, scale)
+        if size: image = pygame.transform.scale(image, size)
         image = pygame.transform.rotate(image, angle)
         image_cache[key] = image
     return image_cache[key]

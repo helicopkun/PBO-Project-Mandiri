@@ -1,6 +1,6 @@
 {
     "slash":    {"damage": 2.5, "damage_tick": "single", 
-                "duration": 0.9, "active_frames": [2, 8], 
+                "duration": 0.25, "active_frames": [2, 8], 
                 "frame_count": 10, "cd": 0.8, "scale":3},
 
     "pierce":   {"damage": 3.0, "damage_tick": "single", 
