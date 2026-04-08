@@ -13,8 +13,11 @@ class Bullet(GameObject):
         self.color = color
 
     def update(self, dt):
-        self.rect.centerx += self.vx * dt
-        self.rect.centery += self.vy * dt
+        self.posX += self.vx * dt
+        self.posY += self.vy * dt
+        self.sync_rect()
+        # self.rect.centerx += self.vx * dt
+        # self.rect.centery += self.vy * dt
         
     def out_of_bounds(self):
         return self.rect.right < -50 or self.rect.left > BG_WIDTH + 50 or self.rect.top > BG_HEIGHT or self.rect.bottom < -50

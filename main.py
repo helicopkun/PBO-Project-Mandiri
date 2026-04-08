@@ -1,6 +1,6 @@
-import pygame, sys, random
+import pygame, sys
 
-from Shared.constants import*
+from Shared.constants import SCREEN_HEIGHT, SCREEN_WIDTH, BG_WIDTH, BG_HEIGHT, BG_BORDER_X
 from Shared.utils import load_json
 
 from Entities.Player import Player
@@ -42,19 +42,19 @@ running = True
 # ================================================ Game loop ==========================================================================================================================================
 
 while running:
-    # print(clock.get_fps())
-    # dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
+    print(clock.get_fps())
+    dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
 
-    og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
-    og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
+    # og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
+    # og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
     
-    fps = clock.get_fps() 
-    if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
-    else: time_scale += (1.0 - time_scale) * 5 * og_dt
-    time_scale = max(0.5, min(time_scale, 1.2))
+    # fps = clock.get_fps() 
+    # if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
+    # else: time_scale += (1.0 - time_scale) * 5 * og_dt
+    # time_scale = max(0.5, min(time_scale, 1.2))
 
-    target_dt = 1 / 60
-    dt = target_dt * time_scale
+    # target_dt = 1 / 60
+    # dt = target_dt * time_scale
     
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -86,7 +86,7 @@ while running:
         continue
 
     if all(not b.alive for b in stage.boss_list):
-        if PlayerTest.rect.right >= SCREEN_WIDTH:
+        if PlayerTest.rect.right >= BG_WIDTH - BG_BORDER_X:
             stage.change_stage(screen, PlayerTest)
   
     # Update Entities

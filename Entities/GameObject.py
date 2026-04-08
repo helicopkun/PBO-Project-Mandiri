@@ -7,17 +7,24 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
                                                             image_path = None,
                                                             flipx = 0, flipy = 0, angle = 0, 
                                                             size_offsetx = 0, size_offsety = 0):
+        
         self.hitbox_radius = hitbox_radius
         self.width = width
         self.height = height
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
+        self.posX = float(self.rect.x)
+        self.posY = float(self.rect.y)
         
         self.image_path = image_path
         self.image = None
         
         if self.image_path: self.image = get_image(image_path, self.rect, flipx, flipy, angle, size_offsetx, size_offsety)
-        
+    
+    def sync_rect(self):
+        self.rect.x = round(self.posX)
+        self.rect.y = round(self.posY)
+
     def draw_self(self, surface):
         if self.image: #note to self, change image on self.image by self.image = get_image(new image)
             image_rect = self.image.get_rect(center=self.rect.center)

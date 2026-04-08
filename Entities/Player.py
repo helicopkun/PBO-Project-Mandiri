@@ -368,8 +368,8 @@ class Player(GameObject):
                 dy /= length
         
             self.rect.centerx += dx * self.config['speedX'] * dt * self.config['phase_spd']
-            self.rect.left = max(200, self.rect.left)
-            self.rect.right = min(BG_WIDTH - 200, self.rect.right)
+            self.rect.left = max(BG_BORDER_X, self.rect.left)
+            self.rect.right = min(BG_WIDTH - BG_BORDER_X, self.rect.right)
             
             self.rect.centery += dy * self.config['speedY'] * dt * self.config['phase_spd']
             self.rect.top = max(0, self.rect.top)

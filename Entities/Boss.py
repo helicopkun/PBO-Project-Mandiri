@@ -68,13 +68,13 @@ class Boss(GameObject):
         time = pygame.time.get_ticks() / 1000
         bop_offset = math.sin(time * self.bop_frequency) * self.bop_amplitude
 
-        self.rect.centery = self.base_y + bop_offset
+        self.posY = self.base_y + bop_offset
+        self.posX += phase['move_speed'] * self.direction * dt
+        self.sync_rect()
 
-        # Movement Flight Loop (Left/Right)
-        self.rect.x += phase['move_speed'] * self.direction * dt
-        if self.rect.right > SCREEN_WIDTH - 100:
+        if self.rect.right > BG_WIDTH - BG_BORDER_X:
             self.direction = -1
-        elif self.rect.left < 100:
+        elif self.rect.left < BG_BORDER_X:
             self.direction = 1
 
     def shoot(self, player, bullet_list, phase_data):

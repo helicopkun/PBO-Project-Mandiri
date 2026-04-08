@@ -5,7 +5,6 @@ from Shared.utils import load_json, get_image, circle_collide
 
 from Entities.GameObject import GameObject
 from Entities.Boss import Boss
-from Entities.Particle import Particle
 
 from Systems.ui import get_font
 
@@ -100,7 +99,7 @@ class StageManager:
 
         main_plat_img = "platform/" + cur_stage['main_plat_img']
         MainPlatform = GameObject(0, 0, SCREEN_WIDTH, 250, size_offsetx=200, image_path=main_plat_img,
-                                                                size_offsety=1000)
+                                                           size_offsety=1000)
         MainPlatform.rect.centerx = BG_WIDTH//2
         MainPlatform.rect.top = GROUND_Y
 
@@ -109,14 +108,15 @@ class StageManager:
         for xy in cur_stage['platforms']:
             self._add_plat(xy, plat_img)
 
-        if 'random' in cur_stage['bosses']: 
-            self.boss_list.append(self._generate_random_boss())
-        else: 
-            bosses_name = cur_stage['bosses'] # get boss names
-            for b in bosses_name:
+        for b in cur_stage['bosses']:
+            if b == 'random': 
+                self.boss_list.append(self._generate_random_boss())
+            else:
                 boss_data = load_json(f"bosses/{b}.json")
-                new_boss = Boss(b, boss_data, random.uniform(100, SCREEN_WIDTH - 100), random.choice([1 , -1]))
+                new_boss = Boss(b, boss_data, random.uniform(BG_BORDER_X, BG_WIDTH - BG_BORDER_X), random.choice([1 , -1]))
                 self.boss_list.append(new_boss)
+        
+                
 
     def change_stage(self, surface, player):
         self.stage_counter += 1
@@ -168,28 +168,35 @@ class StageManager:
         self.particles.clear()
         self.bullet_list.clear()
         player.active_attacks.clear()
-        player.rect.left = 10
+        player.rect.left = BG_BORDER_X + 10
         player.rect.bottom = GROUND_Y
         
     def _add_plat(self, coordinate, image="platform.png"):
         plat_size_offsetx=65
         plat_size_offsety=250
         image = "platform/" + image
-        self.plat_list.append(GameObject(coordinate[0] , (GROUND_Y - coordinate[1]), 500, image_path=image, 
+        self.plat_list.append(GameObject(BG_BORDER_X + coordinate[0] , (GROUND_Y - coordinate[1]), 500, image_path=image, 
                                          size_offsetx=plat_size_offsetx, size_offsety=plat_size_offsety))
     
-    def _generate_boss_phase(self, num_phases=None): # generate boss stat randomly
+    def _generate_boss_data(self, num_phases=None): # generate boss stat randomly
         if num_phases is None:
             num_phases = random.randint(2, 5)  # random amount of phases
-
+        img = ['enemy.png']
+        size = random.randint(100, 250)
+        color = [random.randint(100, 250),
+                 random.randint(100, 250),
+                 random.randint(100, 250)]
+        boss_data = {}
+        boss_data['boss_img'] = random.choice(img)
+        boss_data['size'] = size
+        boss_data['color'] = color
         boss_phase = {}
-
         patterns = ['circle', 'chaos', 'random', 'fan']
         images = ['bullet-1', 'bullet-2', 'bullet-3', 'bullet-orb']
         max_bullet = 7
         max_rate = 1.0
         for phase in range(1, num_phases + 1):
-            boss_phase[phase] = {
+            boss_phase[str(phase)] = {
                 'max_hp': random.randint(10, 25),
                 'move_speed': random.randint(100, 700),
                 'y_axis': random.randint(150, 600),
@@ -201,12 +208,12 @@ class StageManager:
                 'bullet_size': random.randint(5, 12),
                 'bullet_img': random.choice(images)
             }
-
-        return boss_phase
+        boss_data['phase'] = boss_phase
+        return boss_data
 
     def _generate_random_boss(self):
-        start_x = random.uniform(100, SCREEN_WIDTH - 100)
+        start_x = random.uniform(BG_BORDER_X, BG_WIDTH - BG_BORDER_X)
         direction=random.choice([1 , -1])
-        boss = Boss(f"Random boss", self._generate_boss_phase(), start_x, direction)
+        boss = Boss(f"Random boss", self._generate_boss_data(), start_x, direction)
         return boss
 

@@ -8,10 +8,10 @@ GROUND_Y = BG_HEIGHT - 250
 BG_BORDER_X = (BG_WIDTH - SCREEN_WIDTH) // 2   # = 200
 
 #Debugging
-show_hitbox = True
+show_hitbox = False
 show_player_hitbox = False
-show_bullet_hitbox = True
-show_atk_hitbox = True
+show_bullet_hitbox = False
+show_atk_hitbox = False
 show_img_rect = False
 
 CYAN = (0, 255, 255)
