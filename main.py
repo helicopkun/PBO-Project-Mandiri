@@ -44,17 +44,6 @@ running = True
 while running:
     # print(clock.get_fps())
     dt = clock.tick(60) / 1000  # .tick(framerate) mengembalikan waktu ms antar frame, ms / 1000 = detik
-
-    # og_dt = clock.tick(60) / 1000  #slow-mo effect when overloaded, use when having too much frame drops
-    # og_dt = min(og_dt, 0.033)  # cap at ~30 FPS equivalent
-    
-    # fps = clock.get_fps() 
-    # if fps < 55: time_scale += (fps / 60 - time_scale) * 5 * og_dt
-    # else: time_scale += (1.0 - time_scale) * 5 * og_dt
-    # time_scale = max(0.5, min(time_scale, 1.2))
-
-    # target_dt = 1 / 60
-    # dt = target_dt * time_scale
     
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -82,7 +71,11 @@ while running:
             stage.retry(screen, PlayerTest)
             cx, cy = camera.get_snap() # snap to default pos (border, ground)
             clock.tick() #reset clock, so it doesnt make entity teleport
-            continue
+        else:
+            if stage.lost:  draw_lost(screen)
+            elif stage.win: draw_win(screen)
+            pygame.display.update()
+        continue
 
     if all(not b.alive for b in stage.boss_list):
         if PlayerTest.rect.right >= BG_WIDTH - BG_BORDER_X:
@@ -90,13 +83,6 @@ while running:
             cx, cy = camera.get_snap()
             clock.tick()
             continue
-    
-    if stage.lost: 
-        draw_lost(screen)
-        continue
-    if stage.win: 
-        draw_win(screen)
-        continue
     
     # Update Entities
     stage.update_entities(dt, PlayerTest)
@@ -108,7 +94,6 @@ while running:
     PlayerTest.update(keys, click_state, dt, stage.plat_list)
     
 
-    
     # Draw objects
     stage.draw_stage(world_surface)
 

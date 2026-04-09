@@ -10,7 +10,7 @@ class Player(GameObject):
         attack_data = load_json("player/attack.json")
 
         super().__init__(x= BG_BORDER_X + 10, y=GROUND_Y, width=80, height=100, hitbox_radius=self.config['hitbox'],
-                         image_path="character/"+image, size_offsetx=50, size_offsety=30)
+                         image_path="cirno/"+image, size_offsetx=50, size_offsety=30)
 
         # elapsed -> stopwatch (0,1,2, until n) counting up <-> threshold
         # timestamp -> records the time an action triggered <-> duration
@@ -78,9 +78,15 @@ class Player(GameObject):
                 
     def draw(self, surface):
         #Character
+        
+        if self.is_phasing: self.image_path = 'phase.png'
+        elif self.is_jumping: self.image_path = 'jump.png'
+        else: self.image_path = 'cirno.png'
+        self.image_path = "cirno/" + self.image_path
         self.image = get_image(image_path=self.image_path, flipx=0 if self.facing_right else 1, rect=self.rect, 
                                                                                             size_offsetx=50, 
                                                                                             size_offsety=30)
+        self.image.set_alpha(100 if self.is_phasing else 255)
         if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
             self.draw_self(surface)
 

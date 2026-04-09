@@ -63,7 +63,6 @@ def draw_win(surface):
     
     surface.fill(BLACK)
     surface.blit(text, text_rect)
-    pygame.display.flip()
 
 def draw_lost(surface):
     font = get_font(72)
@@ -72,4 +71,3 @@ def draw_lost(surface):
     
     surface.fill(BLACK)
     surface.blit(text, text_rect)
-    pygame.display.flip()
