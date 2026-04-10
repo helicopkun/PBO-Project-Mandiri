@@ -33,9 +33,9 @@ class Boss(GameObject):
 
         #Box
         margin = size
-        left   = BG_BORDER_X + margin
+        left   = BG_BORDER_X
         right  = BG_WIDTH - BG_BORDER_X - margin
-        top    = BG_BORDER_Y + margin
+        top    = BG_BORDER_Y
         bottom = GROUND_Y - margin
         self.box_corners = [(left, top), (right, top), (right, bottom), (left, bottom)]
         self.box_target_idx = 0
@@ -79,7 +79,7 @@ class Boss(GameObject):
             if phase['movement'] == 'chase': self._move_chase(dt, phase, player)
             if phase['movement'] == 'random': self._move_random_angle(dt, phase)
             if phase['movement'] == 'middle': self._move_middle(dt, phase)
-            
+
         self.sync_rect()
 
     def _move_bop(self, dt, phase):
@@ -141,15 +141,14 @@ class Boss(GameObject):
             self.posY = max(BG_BORDER_Y + self.height//2, min(GROUND_Y - self.width//2, self.posY))
 
     def _move_middle(self, dt, phase):
-        target = (BG_WIDTH//2, BG_HEIGHT//2) # middle arena
+        target = (BG_WIDTH//2 - self.width//2, BG_HEIGHT//2 - self.width//2) # middle arena
         dx = target[0] - self.posX
         dy = target[1] - self.posY
         dist = math.hypot(dx, dy)
-
-        if dist > 1:
-            spd = phase['move_speed']
-            self.posX += (dx / dist) * spd * dt
-            self.posY += (dy / dist) * spd * dt
+        if dist < 5: return
+        spd = phase['move_speed']
+        self.posX += (dx / dist) * spd * dt
+        self.posY += (dy / dist) * spd * dt
 
 
     def _shoot(self, player, bullet_list, phase_data):
@@ -278,3 +277,4 @@ class Boss(GameObject):
         else:
             self.max_hp = self.phases[str(self.current_phase)]['max_hp']
             self.hp = self.max_hp
+            self.base_y = self.posY

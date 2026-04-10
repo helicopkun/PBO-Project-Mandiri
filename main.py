@@ -1,13 +1,13 @@
 import pygame, sys
 
 from Shared.constants import SCREEN_HEIGHT, SCREEN_WIDTH, BG_WIDTH, BG_HEIGHT, BG_BORDER_X
-from Shared.utils import load_json
+from Shared.utils import load_json, preload_assets
 
 from Entities.Player import Player
 
 from Systems.Camera import Camera
 from Systems.StageManager import StageManager
-from Systems.ui import init_font, draw_ui, draw_win, draw_lost
+from Systems.ui import init_font, draw_ui, draw_win, draw_lost, draw_loading_screen
 
 pygame.init()
 init_font()
@@ -19,17 +19,17 @@ pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name
 # Danmaku ~ bullet hell in japanese
 
 # ================================================ Game loop setup ==========================================================================================================================================
+draw_loading_screen(screen)
+pygame.display.update()
+preload_assets()
 
-# Player Load 
-attack_type = load_json("player/attack.json")
-PlayerTest = Player(name="HelicopKun", attack='slash')
+
+PlayerTest = Player(name="HelicopKun")
 #might do hotbar inventory-based attacks 1.slash, 2.Pierce, 3...
 
-# Stage Load 
 STAGES_ICY = load_json("stages/icy_cave.json")
 stage = StageManager(STAGES_ICY)
 stage.load_stage(screen, PlayerTest)
-stage.transitioning = False
 
 camera = Camera(PlayerTest) #screen canvas position
 world_surface = pygame.Surface((BG_WIDTH, BG_HEIGHT)) #background canvas

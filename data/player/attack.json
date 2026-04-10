@@ -3,9 +3,9 @@
                 "duration": 0.2, "active_frames": [2, 8], 
                 "frame_count": 10, "cd": 0.8, "scale":3},
 
-    "pierce":   {"damage": 3.0, "damage_tick": "single", 
-                "duration": 0.50, "active_frames": [6, 8], 
-                "frame_count": 9, "cd": 1.2, "scale":3},
+    "pierce":   {"damage": 300.0, "damage_tick": "single", 
+                "duration": 0.6, "active_frames": [7, 9],
+                "frame_count": 10, "cd": 1.5, "scale":3},
 
     "spin" :    {"damage": 0.5, "damage_tick": "multi",
                 "duration": 0.70, "active_frames": [2, 10],

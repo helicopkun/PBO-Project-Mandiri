@@ -5,7 +5,7 @@ from Entities.GameObject import GameObject
 from Entities.Particle import spawn_particles
 
 class Player(GameObject):
-    def __init__(self, name = "Baka", state = "idle", attack = 'slash'):
+    def __init__(self, name = "Baka", state = "idle", attack = 'pierce'):
         self.config = load_json("player/config.json")
         attack_data = load_json("player/attack.json")
 
@@ -269,7 +269,8 @@ class Player(GameObject):
     def _attacking(self, atk): #generate active frame hitbox for specific attack
         atk['active_hitboxes'].clear()# Reset active hitboxes every frame
         start_frame = atk['type_data']['active_frames'][0]
-        end_frame = atk['type_data']['active_frames'][1]
+        end_frame = min(atk['type_data']['active_frames'][1],
+                        atk['type_data']['frame_count'] - 1) #desync measure
 
         if start_frame <= atk['cur_frame'] <= end_frame: #check if in the active frame window
             total_active_frames = max(1, end_frame - start_frame) # prevent division by zero
@@ -277,27 +278,27 @@ class Player(GameObject):
             total_hitboxes = len(atk['hitboxes'])
 
             if atk['type'] == 'slash': # --- THE SWEEP LOGIC --- Visual: {}{}[>][>]{}{} -> Sweeps across the chain
-                current_tip = int(progress * total_hitboxes) + 3
+                current_tip = int(progress * total_hitboxes)
                 hitbox_length = 4 
                 start_idx = max(0, current_tip - hitbox_length) # hitbox tail
                 atk['active_hitboxes'] = atk['hitboxes'][start_idx : current_tip]
 
             elif atk['type'] == 'pierce': # --- THE GROW LOGIC --- Visual: [>][>][>]{}{} -> Grows from base to tip
-                current_tip = int(progress * total_hitboxes) + 1
+                current_tip = int(progress * total_hitboxes)
                 atk['active_hitboxes'] = atk['hitboxes'][:current_tip]
             
             else: # Default fallback (Spin / All at once)
                 atk['active_hitboxes'] = atk['hitboxes'].copy()
             
     def _generate_attack_hitbox(self): # generate chain hitbox trajectory, not needing atk data because only load ONCE during the trigger phase
-        n = 7  # more = smoother coverage
+        n = 8  # more = smoother coverage
 
         if self.attack_type == 'slash':
             length = 2 * self.height
-            thickness = self.width
+            thickness = self.width / 1.5
         if self.attack_type == 'pierce': 
-            length = 4 * self.height
-            thickness = self.width
+            length = 5.5 * self.height
+            thickness = self.width / 2.5
 
         length *= self.attack_type_data['scale']
         thickness *= self.attack_type_data['scale']
@@ -462,7 +463,8 @@ class Player(GameObject):
                 dx = mx - self.rect.centerx
                 dy = my - self.rect.centery
 
-                self.facing_angle = math.degrees(math.atan2(-dy, dx)) #-dy because pygame y is flipped
+                self.facing_angle = math.degrees(math.atan2(-dy, dx))
+                self.facing_angle = self.facing_angle % 360
                 # shifts from 0 <-> 44 to -22.5 <-> 22.5 for index 0      
                 index = int((self.facing_angle + 22.5) // 45) % 8 # 22.5 for shifting angle, e.g: without 0 - 44 -> 0 instead turn into (-22.5 + 22.5) to (22.5 + 22.5) -> 0
                 self.facing = direction[index] # convert 24-d to 8-d

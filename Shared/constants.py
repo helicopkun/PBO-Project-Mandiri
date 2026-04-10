@@ -12,7 +12,7 @@ BG_BORDER_Y = (BG_HEIGHT - 1080) // 2 # = 100
 show_hitbox = False
 show_player_hitbox = False
 show_bullet_hitbox = False
-show_atk_hitbox = False
+show_atk_hitbox = True
 show_img_rect = False
 
 CYAN = (0, 255, 255)

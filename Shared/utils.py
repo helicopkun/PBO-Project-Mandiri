@@ -1,4 +1,4 @@
-import pygame, json, math
+import pygame, json, math, os
 
 def load_json(path):
     with open(f"data/{path}", "r") as f:
@@ -16,7 +16,7 @@ def circle_collide(c1_pos, r1, c2_pos, r2):
     return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
 
 assets = {} 
-def load_asset(image_path): #load base image into cache
+def _load_asset(image_path): #load base image into cache
     path = "assets/" + image_path
     if path not in assets:
         assets[path] = pygame.image.load(path).convert_alpha()
@@ -35,12 +35,29 @@ def get_image(image_path, rect=None, # load or make a new image in cache (into t
     key = (image_path, size, flipx, flipy, angle)
  
     if key not in image_cache:
-        image = load_asset(image_path)
+        image = _load_asset(image_path)
         image = pygame.transform.flip(image, flipx, flipy)
         if size: image = pygame.transform.scale(image, size)
         image = pygame.transform.rotate(image, angle)
         image_cache[key] = image
     return image_cache[key]
+
+def preload_assets(): #preload same image, but multiple variation
+    # Character states
+    for state in os.listdir("assets/cirno"):
+        for flip in [0, 1]:
+            get_image(f"cirno/{state}", flipx=flip)
+
+    # Attack images - all angles x all frames
+    for attack_type in os.listdir("assets/attack"):
+        for filename in os.listdir(f"assets/attack/{attack_type}"):
+            for deg in range(0, 360, 15):
+                get_image(f"attack/{attack_type}/{filename}", angle=deg)
+
+    # Bullet images
+    for bullet in os.listdir("assets/bullet"):
+        for deg in [0, 360, 5]:
+            get_image(f"bullet/{bullet}", angle=deg)
 
 def update_animation(surface, cur_img, center, total_frame, cur_frame, duration, timestamp):
     if cur_frame >= total_frame: return total_frame, 0
