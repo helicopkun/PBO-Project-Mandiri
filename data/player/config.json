@@ -1,5 +1,5 @@
 {
-    "max_hp" : 100,
+    "max_hp" : 10,
     "grace_duration" : 1.5, 
     "hitbox" : 15,
     
@@ -25,5 +25,5 @@
 
     "absorb_duration" : 0.3,
     "absorb_cd" : 1,
-    "absorb_radius" : 30
+    "absorb_radius" : 35
 }

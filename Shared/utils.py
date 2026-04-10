@@ -41,3 +41,16 @@ def get_image(image_path, rect=None, # load or make a new image in cache (into t
         image = pygame.transform.rotate(image, angle)
         image_cache[key] = image
     return image_cache[key]
+
+def update_animation(surface, cur_img, center, total_frame, cur_frame, duration, timestamp):
+    if cur_frame >= total_frame: return total_frame, 0
+    
+    img_rect = cur_img.get_rect(center=center)
+    surface.blit(cur_img, img_rect)
+
+    frame_delay = duration*1000 / total_frame # i put it here so frame 0 can still play
+    if pygame.time.get_ticks() - timestamp > frame_delay:
+        timestamp = pygame.time.get_ticks()
+        cur_frame += 1
+    
+    return cur_frame, timestamp

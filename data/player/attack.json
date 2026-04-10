@@ -1,10 +1,10 @@
 {
-    "slash":    {"damage": 200.5, "damage_tick": "single", 
+    "slash":    {"damage": 1.5, "damage_tick": "single", 
                 "duration": 0.2, "active_frames": [2, 8], 
                 "frame_count": 10, "cd": 0.8, "scale":3},
 
     "pierce":   {"damage": 3.0, "damage_tick": "single", 
-                "duration": 0.50, "active_frames": [4, 8], 
+                "duration": 0.50, "active_frames": [6, 8], 
                 "frame_count": 9, "cd": 1.2, "scale":3},
 
     "spin" :    {"damage": 0.5, "damage_tick": "multi",

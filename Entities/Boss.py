@@ -5,7 +5,7 @@ from Entities.Bullet import Bullet
 from Entities.Particle import spawn_particles
 
 class Boss(GameObject):
-    def __init__(self, name, boss_data, start_x = SCREEN_WIDTH//2, direction = 1): # 1 to go right, -1 to go left 
+    def __init__(self, name, boss_data, start_x = BG_WIDTH//2, direction = 1): # 1 to go right, -1 to go left 
         self.boss_data = boss_data
         self.phases = boss_data['phase']                                                                                  
         self.total_phases = len(self.phases)
@@ -25,11 +25,25 @@ class Boss(GameObject):
         self.grace_duration = 200
         self.alive = True
 
+        #Bop
         self.base_y = float(start_y)
         self.bop_amplitude = 25
         self.bop_frequency = 3
-
         self.direction = direction # 1 for right, -1 for left
+
+        #Box
+        margin = size
+        left   = BG_BORDER_X + margin
+        right  = BG_WIDTH - BG_BORDER_X - margin
+        top    = BG_BORDER_Y + margin
+        bottom = GROUND_Y - margin
+        self.box_corners = [(left, top), (right, top), (right, bottom), (left, bottom)]
+        self.box_target_idx = 0
+
+        #Random
+        self.move_angle = random.uniform(0, math.pi * 2)
+
+        #Shoot
         self.fire_timer = 0
         self.spiral_angle = 0
         
@@ -41,9 +55,8 @@ class Boss(GameObject):
 
         phase = self.phases[str(self.current_phase)]
 
-        self._move(dt, phase)
+        self._move(dt, phase, player)
             
-        # Shooting logic
         self.fire_timer -= dt
         if self.fire_timer <= 0:
             self.fire_timer = phase['rate']
@@ -57,27 +70,87 @@ class Boss(GameObject):
             self.draw_hitcircle(surface, color, 6) #draw hitbox here is more like indicator in the middle, color for phase color
             self.draw_self(surface)
     
-    def _move(self, dt, phase):
+
+    def _move(self, dt, phase, player):
+        if 'movement' not in phase: self._move_bop(dt, phase)
+        else:    
+            if phase['movement'] == 'bop': self._move_bop(dt, phase)
+            if phase['movement'] == 'box': self._move_box(dt, phase)
+            if phase['movement'] == 'chase': self._move_chase(dt, phase, player)
+            if phase['movement'] == 'random': self._move_random_angle(dt, phase)
+            if phase['movement'] == 'middle': self._move_middle(dt, phase)
+            
+        self.sync_rect()
+
+    def _move_bop(self, dt, phase):
         #Transition phase movement
         new_axis = GROUND_Y - phase['y_axis']
         if abs(self.base_y - new_axis) > 2:
-            if self.base_y < new_axis:
-                self.base_y += 100 * dt
-            else:
-                self.base_y -= 100 * dt
-
-        # Bop movement
+            self.base_y += 100 * dt if self.base_y < new_axis else -100 * dt
+        #Bop
         time = pygame.time.get_ticks() / 1000
         bop_offset = math.sin(time * self.bop_frequency) * self.bop_amplitude
-
+        if self.rect.right > BG_WIDTH - BG_BORDER_X: self.direction = -1
+        elif self.rect.left < BG_BORDER_X:           self.direction =  1
         self.posY = self.base_y + bop_offset
         self.posX += phase['move_speed'] * self.direction * dt
-        self.sync_rect()
 
-        if self.rect.right > BG_WIDTH - BG_BORDER_X:
-            self.direction = -1
-        elif self.rect.left < BG_BORDER_X:
-            self.direction = 1
+    def _move_box(self, dt, phase):
+        target = self.box_corners[self.box_target_idx]
+        tx, ty = target
+        dx = tx - self.posX
+        dy = ty - self.posY
+        dist = math.hypot(dx, dy)
+
+        if dist < 5:  # close enough, go to next corner
+            self.box_target_idx = (self.box_target_idx + 1) % 4
+        else:
+            spd = phase['move_speed']
+            self.posX += (dx / dist) * spd * dt
+            self.posY += (dy / dist) * spd * dt
+            
+    def _move_chase(self, dt, phase, player):
+        dx = player.rect.centerx - self.posX
+        dy = player.rect.centery - self.posY
+        dist = math.hypot(dx, dy)
+
+        if dist > self.width*1.5:
+            spd = phase['move_speed']
+            spd = max(spd, player.config['speedX'] / 2)
+            self.posX += (dx / dist) * spd * dt
+            self.posY += (dy / dist) * spd * dt
+
+        # clamp to arena
+        self.posX = max(BG_BORDER_X + self.width//2,  min(BG_WIDTH - BG_BORDER_X - self.width//2,  self.posX))
+        self.posY = max(BG_BORDER_Y + self.height//2, min(GROUND_Y - self.width//2,                self.posY))
+
+    def _move_random_angle(self, dt, phase):
+        spd = phase['move_speed']
+        self.posX += math.cos(self.move_angle) * spd * dt
+        self.posY += math.sin(-self.move_angle) * spd * dt #pygame Y coord flipped
+
+        new_angle = None                                                #10* offset from wall
+        if self.posX > BG_WIDTH - BG_BORDER_X - self.width//2:  new_angle = random.uniform(100, 260) # 90, 270, right
+        elif self.posX < BG_BORDER_X + self.width//2:           new_angle = random.uniform(-80, 80) # -90, 90, left
+        elif self.posY > GROUND_Y - self.width//2:              new_angle = random.uniform(10, 170) # 0, 180, bottom
+        elif self.posY < BG_BORDER_Y + self.width//2:           new_angle = random.uniform(190, 350) # 180, 360, top
+        
+        if new_angle != None:
+            self.move_angle = math.radians(new_angle) 
+            self.posX = max(BG_BORDER_X + self.width//2,  min(BG_WIDTH - BG_BORDER_X - self.width//2,  self.posX))
+            self.posY = max(BG_BORDER_Y + self.height//2, min(GROUND_Y - self.width//2, self.posY))
+
+    def _move_middle(self, dt, phase):
+        target = (BG_WIDTH//2, BG_HEIGHT//2) # middle arena
+        dx = target[0] - self.posX
+        dy = target[1] - self.posY
+        dist = math.hypot(dx, dy)
+
+        if dist > 1:
+            spd = phase['move_speed']
+            self.posX += (dx / dist) * spd * dt
+            self.posY += (dy / dist) * spd * dt
+
 
     def _shoot(self, player, bullet_list, phase_data):
         pattern = phase_data['pattern']
@@ -144,8 +217,6 @@ class Boss(GameObject):
                 bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
         
         elif pattern == 'spiral':
-            # Circle ring that rotates each shot — looks like spinning arms at fast fire rates
-            # num_bullet controls arms, rate controls spin speed
             step = (math.pi * 2) / num_bullets
             for i in range(num_bullets):
                 a = step * i + self.spiral_angle
@@ -157,8 +228,6 @@ class Boss(GameObject):
             self.spiral_angle += math.radians(20)  # rotate 20 degrees each shot
  
         elif pattern == 'burst':
-            # Shotgun — tight cluster aimed at player with slight random noise per bullet
-            # Feels different from fan: tighter, noisier, more panic-inducing
             angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
             for i in range(num_bullets):
                 noise = random.uniform(-0.12, 0.12)  # ~7 degree noise
@@ -170,8 +239,6 @@ class Boss(GameObject):
                 bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
  
         elif pattern == 'cross':
-            # Rotated circle — always has one arm pointing at the player
-            # num_bullet = number of arms (use 4 or 8)
             angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
             step = (math.pi * 2) / num_bullets
             for i in range(num_bullets):
@@ -183,9 +250,6 @@ class Boss(GameObject):
                 bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
  
         elif pattern == 'aimed':
-            # Precise high-speed shots directly at the player
-            # num_bullet = 1 is a single sniper shot, 2-3 adds a narrow flanking pair
-            # Very different from fan — no forgiveness if player doesn't move
             angle_to_player = math.atan2(player.rect.centery - cy, player.rect.centerx - cx)
             for i in range(num_bullets):
                 offset = (i - num_bullets // 2) * math.radians(8)  # 8 degrees between each
@@ -195,7 +259,8 @@ class Boss(GameObject):
                 angle = -math.degrees(math.atan2(by, bx))
                 angle = round(angle / 5) * 5
                 bullet_list.append(Bullet(cx, cy, bx, by, size, image, angle=angle))
-                
+
+
     def take_damage(self, atk_dmg, particles_list):
         self.hp -= atk_dmg
         self.grace_timestamp = pygame.time.get_ticks()

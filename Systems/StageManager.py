@@ -169,12 +169,13 @@ class StageManager:
         plat_size_offsetx=65
         plat_size_offsety=250
         image = "platform/" + image
-        self.plat_list.append(GameObject(BG_BORDER_X + coordinate[0] + 50 , (GROUND_Y - coordinate[1]), 300, image_path=image, 
+        self.plat_list.append(GameObject(BG_BORDER_X + coordinate[0] + 80 , (GROUND_Y - coordinate[1]), 300, image_path=image, 
                                          size_offsetx=plat_size_offsetx, size_offsety=plat_size_offsety))
     
     def _generate_boss_data(self, num_phases=None): # generate boss stat randomly
         if num_phases is None:
             num_phases = random.randint(2, 5)  # random amount of phases
+        movement = ['bop', 'box', 'chase', 'random', 'middle']
         img = ['enemy.png']
         size = random.randint(100, 250)
         color = [random.randint(100, 250),
@@ -192,6 +193,7 @@ class StageManager:
         for phase in range(1, num_phases + 1):
             boss_phase[str(phase)] = {
                 'max_hp': random.randint(10, 25),
+                'movement': random.choice(movement),
                 'move_speed': random.randint(100, 700),
                 'y_axis': random.randint(150, 600),
                 'rate': random.uniform(0.2, max_rate),
@@ -207,7 +209,7 @@ class StageManager:
         return boss_data
 
     def _generate_random_boss(self):
-        start_x = random.uniform(BG_BORDER_X, BG_WIDTH - BG_BORDER_X)
+        start_x = random.uniform(BG_WIDTH//2, BG_WIDTH - BG_BORDER_X)
         direction=random.choice([1 , -1])
         boss = Boss(f"Random boss", self._generate_boss_data(), start_x, direction)
         return boss

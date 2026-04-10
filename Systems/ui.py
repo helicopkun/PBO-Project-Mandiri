@@ -58,7 +58,7 @@ def draw_ui(surface, player, boss_list):
 
 def draw_win(surface):
     font = get_font(72)
-    text = font.render("You win", True, WHITE)
+    text = font.render("You win. Press R to retry", True, WHITE)
     text_rect = text.get_rect(center=(surface.get_width() // 2, surface.get_height() // 2))
     
     surface.fill(BLACK)
@@ -66,7 +66,7 @@ def draw_win(surface):
 
 def draw_lost(surface):
     font = get_font(72)
-    text = font.render("You LOST", True, WHITE)
+    text = font.render("You LOST. Press R to retry", True, WHITE)
     text_rect = text.get_rect(center=(surface.get_width() // 2, surface.get_height() // 2))
     
     surface.fill(BLACK)

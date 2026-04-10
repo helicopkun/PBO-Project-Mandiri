@@ -34,9 +34,8 @@ stage.transitioning = False
 camera = Camera(PlayerTest) #screen canvas position
 world_surface = pygame.Surface((BG_WIDTH, BG_HEIGHT)) #background canvas
 
-
+drawn = False
 clock = pygame.time.Clock()
-time_scale = 1.0
 
 running = True
 # ================================================ Game loop ==========================================================================================================================================
@@ -67,14 +66,19 @@ while running:
     #Update current stage
     if stage.lost or stage.win:
         if keys[pygame.K_r]:
-            print("retry")
             stage.retry(screen, PlayerTest)
             cx, cy = camera.get_snap() # snap to default pos (border, ground)
             clock.tick() #reset clock, so it doesnt make entity teleport
-        else:
-            if stage.lost:  draw_lost(screen)
-            elif stage.win: draw_win(screen)
+            drawn = False
+        elif not drawn:
+            pygame.time.delay(1000)
+            if stage.lost:
+                PlayerTest.draw(world_surface, keys)
+                draw_lost(screen)
+            elif stage.win: 
+                draw_win(screen)
             pygame.display.update()
+            drawn = True
         continue
 
     if all(not b.alive for b in stage.boss_list):
@@ -97,7 +101,7 @@ while running:
     # Draw objects
     stage.draw_stage(world_surface)
 
-    PlayerTest.draw(world_surface)
+    PlayerTest.draw(world_surface, keys)
 
     stage.draw_entities(world_surface)
     

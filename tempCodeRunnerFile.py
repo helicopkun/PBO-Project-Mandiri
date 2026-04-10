@@ -1,1 +1,2 @@
 
+            if stage.lost:
