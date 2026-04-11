@@ -33,9 +33,9 @@ class Boss(GameObject):
 
         #Box
         margin = size
-        left   = BG_BORDER_X
+        left   = BG_BORDER_X + margin
         right  = BG_WIDTH - BG_BORDER_X - margin
-        top    = BG_BORDER_Y
+        top    = BG_BORDER_Y + margin
         bottom = GROUND_Y - margin
         self.box_corners = [(left, top), (right, top), (right, bottom), (left, bottom)]
         self.box_target_idx = 0

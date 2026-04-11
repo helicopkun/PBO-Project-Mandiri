@@ -4,7 +4,7 @@ from Shared.utils import get_image
 
 class GameObject: #Combination of Circle and Rect hitbox, based on usage (finished?) todo: will probably change if needed
     def __init__ (self, x, y, width = 20, height = 20, hitbox_radius = 15, 
-                                                            image_path = None,
+                                                            image_path = None, scale = None,
                                                             flipx = 0, flipy = 0, angle = 0, 
                                                             size_offsetx = 0, size_offsety = 0):
         
@@ -21,7 +21,7 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
         self.image_path = image_path
         self.image = None
         
-        if self.image_path: self.image = get_image(image_path, self.rect, flipx, flipy, angle, size_offsetx, size_offsety)
+        if self.image_path: self.image = get_image(image_path, self.rect, scale, flipx, flipy, angle, size_offsetx, size_offsety)
     
     def sync_rect(self):
         self.rect.x = round(self.posX)

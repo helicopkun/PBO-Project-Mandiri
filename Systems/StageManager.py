@@ -34,11 +34,7 @@ class StageManager:
             for atk in player.active_attacks:
                 for hitbox in atk['active_hitboxes']:
                     if hitbox.colliderect(b.rect):
-                        player.attacked(b, atk, self.particles)
-
-                for enemy in list(atk['target']): #reduce tick_rate cd 
-                    if atk['target'][enemy] > 0:
-                        atk['target'][enemy] -= dt    
+                        player.attacked(b, atk, self.particles)   
                     
         for p in self.particles[:]: #safely remove with copying list
             p.update(dt)

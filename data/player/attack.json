@@ -1,13 +1,12 @@
 {
     "slash":    {"damage": 1.5, "damage_tick": "single", 
-                "duration": 0.2, "active_frames": [2, 8], 
-                "frame_count": 10, "cd": 0.8, "scale":3},
+                "stamina_reduce": 0.5, "action_cd": 0.5,
+                "scale": 1.0, "duration": 0.2, 
+                "active_frames": [2, 8], "frame_count": 10},
 
-    "pierce":   {"damage": 300.0, "damage_tick": "single", 
-                "duration": 0.6, "active_frames": [7, 9],
-                "frame_count": 10, "cd": 1.5, "scale":3},
-
-    "spin" :    {"damage": 0.5, "damage_tick": "multi",
-                "duration": 0.70, "active_frames": [2, 10],
-                "frame_count": 13,"cd": 1.0, "scale":3}
+    "pierce":    {"damage": 3.0, "damage_tick": "single", 
+                "stamina_reduce": 1, "action_cd": 0.6,
+                "scale": 0.8, "duration": 0.6,
+                "active_frames": [7, 9], "frame_count": 10}
+    
 }

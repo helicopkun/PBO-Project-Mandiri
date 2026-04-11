@@ -23,7 +23,7 @@ def _load_asset(image_path): #load base image into cache
     return assets[path]
 
 image_cache = {} 
-def get_image(image_path, rect=None, # load or make a new image in cache (into the assigned rectangle if available)
+def get_image(image_path, rect=None, scale = None, # load or make a new image in cache (into the assigned rectangle if available)
                flipx = 0, flipy = 0, angle = 0, 
                size_offsetx = 0, size_offsety = 0): # offset for minor adjustment, not needed if image is edited on figma
     size = None
@@ -32,17 +32,18 @@ def get_image(image_path, rect=None, # load or make a new image in cache (into t
     elif size_offsetx or size_offsety: 
         size = (size_offsetx, size_offsety) # size only
 
-    key = (image_path, size, flipx, flipy, angle)
+    key = (image_path, size, scale, flipx, flipy, angle)
  
     if key not in image_cache:
         image = _load_asset(image_path)
         image = pygame.transform.flip(image, flipx, flipy)
         if size: image = pygame.transform.scale(image, size)
+        if scale: image = pygame.transform.scale_by(image, scale)
         image = pygame.transform.rotate(image, angle)
         image_cache[key] = image
     return image_cache[key]
 
-def preload_assets(): #preload same image, but multiple variation
+def preload_assets(atk_data): #preload same image, but multiple variation
     # Character states
     for state in os.listdir("assets/cirno"):
         for flip in [0, 1]:
@@ -52,11 +53,12 @@ def preload_assets(): #preload same image, but multiple variation
     for attack_type in os.listdir("assets/attack"):
         for filename in os.listdir(f"assets/attack/{attack_type}"):
             for deg in range(0, 360, 15):
-                get_image(f"attack/{attack_type}/{filename}", angle=deg)
+                get_image(f"attack/{attack_type}/{filename}", angle=deg, 
+                          scale=atk_data[str(attack_type)]['scale'])
 
     # Bullet images
     for bullet in os.listdir("assets/bullet"):
-        for deg in [0, 360, 5]:
+        for deg in range(0, 360, 5):
             get_image(f"bullet/{bullet}", angle=deg)
 
 def update_animation(surface, cur_img, center, total_frame, cur_frame, duration, timestamp):

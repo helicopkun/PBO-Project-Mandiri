@@ -5,9 +5,9 @@ from Entities.GameObject import GameObject
 from Entities.Particle import spawn_particles
 
 class Player(GameObject):
-    def __init__(self, name = "Baka", state = "idle", attack = 'pierce'):
+    def __init__(self, name = "Baka", state = "idle", attack = 'slash'):
         self.config = load_json("player/config.json")
-        attack_data = load_json("player/attack.json")
+        self.attack_data = load_json("player/attack.json")
 
         super().__init__(x= BG_BORDER_X + 10, y=GROUND_Y, width=80, height=100, hitbox_radius=self.config['hitbox'],
                          image_path=f"cirno/{state}.png", size_offsetx=50, size_offsety=30)
@@ -31,8 +31,15 @@ class Player(GameObject):
         self.vy = 0.0
 
         self.is_phasing = False
-        self.phase_bar = 0 # current bar
-        self.phase_barCD_timestamp = 0
+        self.phase_bar = self.config['phase_max']
+        self.phase_recharge_timestamp = 0
+        
+        self.stamina_bar = self.config['stamina_max']
+        self.stamina_recharge_timestamp = 0
+
+        self.action_cd_remaining = 0
+        self.is_exhausted = False
+        self.scale_rate = 1.0
 
         self.is_jumping = False
         self.jump_duration_elapsed = 0
@@ -44,12 +51,11 @@ class Player(GameObject):
         self.quickfall_plat_elapsed = 0
         self.old_bottom = self.rect.bottom
         
-        self.action_cd_remaining = 0 # action cooldown
 
         self.absorb_active = False
         
         self.attack_type = attack
-        self.attack_type_data = attack_data[attack]
+        self.attack_type_data = self.attack_data[attack]
         self.active_attacks = []
         self.copy_rect = None #copying self old pos
         
@@ -61,18 +67,17 @@ class Player(GameObject):
 
     def update(self, keys, click_state, dt, platforms):
         self.platform_group = platforms
+        self._tick(dt)
         
         # Movement - freeze when absorbing
         if not self.absorb_active:
             self._move(keys, dt) 
         
-        self._update_state(dt)
-
         self._facing_indicator(keys, click_state)
         self._bar_indicator()
         
         # Actions
-        if not (self.is_phasing or self.action_cd_remaining > 0 or self.grace_active):
+        if not (self.is_exhausted or self.grace_active or self.is_phasing):
             self.actions(keys, click_state)
                 
     def draw(self, surface, keys):
@@ -103,63 +108,77 @@ class Player(GameObject):
                 for hitbox in atk['active_hitboxes']:
                     pygame.draw.rect(surface, RED2_0, hitbox, 2)
 
-        if self.action_cd_remaining > 0:
-            pygame.draw.rect(surface, GREY, self.action_bar_rectMax) # BG
-            pygame.draw.rect(surface, YELLOW, self.action_bar_rect)
-            pygame.draw.rect(surface, WHITE, self.action_bar_rectMax, 2)
+        if self.stamina_bar < self.config['stamina_max']:
+            pygame.draw.rect(surface, GREY, self.stamina_bar_max) # BG
+            pygame.draw.rect(surface, YELLOW if not self.is_exhausted else RED2_0, self.stamina_bar_rect)
+            pygame.draw.rect(surface, WHITE, self.stamina_bar_max, 2)
 
         if self.phase_bar < self.config['phase_max']:
-            pygame.draw.rect(surface, GREY, self.phase_bar_rectMax) # BG
+            pygame.draw.rect(surface, GREY, self.phase_bar_max) # BG
             pygame.draw.rect(surface, BLUE, self.phase_bar_rect)
-            pygame.draw.rect(surface, WHITE, self.phase_bar_rectMax, 2)
+            pygame.draw.rect(surface, WHITE, self.phase_bar_max, 2)
 
-        #Facing indicator - might change to texture
-        line_length = 20
-        line_width = 7
-        if self.facing == 'left':
-            pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.centery),
-                                             (self.rect.left - line_length - 20, self.rect.centery), line_width)
-        if self.facing == 'right':
-            pygame.draw.line(surface, WHITE, (self.rect.right + 20, self.rect.centery),
-                                             (self.rect.right + line_length + 20, self.rect.centery), line_width)
-        if self.facing == 'up':
-            pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.top - 20),
-                                             (self.rect.centerx, self.rect.top - line_length - 20), line_width)
-        if self.facing == 'down':
-            pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.bottom + 20),
-                                             (self.rect.centerx, self.rect.bottom + line_length + 20), line_width)
+        # #Facing indicator - might change to texture
+        # line_length = 20
+        # line_width = 7
+        # if self.facing == 'left':
+        #     pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.centery),
+        #                                      (self.rect.left - line_length - 20, self.rect.centery), line_width)
+        # if self.facing == 'right':
+        #     pygame.draw.line(surface, WHITE, (self.rect.right + 20, self.rect.centery),
+        #                                      (self.rect.right + line_length + 20, self.rect.centery), line_width)
+        # if self.facing == 'up':
+        #     pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.top - 20),
+        #                                      (self.rect.centerx, self.rect.top - line_length - 20), line_width)
+        # if self.facing == 'down':
+        #     pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.bottom + 20),
+        #                                      (self.rect.centerx, self.rect.bottom + line_length + 20), line_width)
 
-        if self.facing == 'top-left':
-            pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.top - 20),
-                                            get_end_pos(self.rect.left - 20, self.rect.top - 20, 45, line_length), line_width)
-        if self.facing == 'top-right':
-            pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.top - 10),
-                                            get_end_pos(self.rect.right + 10, self.rect.top - 10, -45, line_length), line_width)
-        if self.facing == 'bottom-left':
-            pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.bottom + 20),
-                                            get_end_pos(self.rect.left - 20, self.rect.bottom + 20, -45, line_length), line_width)
-        if self.facing == 'bottom-right':
-            pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.bottom + 10),
-                                            get_end_pos(self.rect.right + 10, self.rect.bottom + 10, 45, line_length), line_width)
+        # if self.facing == 'top-left':
+        #     pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.top - 20),
+        #                                     get_end_pos(self.rect.left - 20, self.rect.top - 20, 45, line_length), line_width)
+        # if self.facing == 'top-right':
+        #     pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.top - 10),
+        #                                     get_end_pos(self.rect.right + 10, self.rect.top - 10, -45, line_length), line_width)
+        # if self.facing == 'bottom-left':
+        #     pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.bottom + 20),
+        #                                     get_end_pos(self.rect.left - 20, self.rect.bottom + 20, -45, line_length), line_width)
+        # if self.facing == 'bottom-right':
+        #     pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.bottom + 10),
+        #                                     get_end_pos(self.rect.right + 10, self.rect.bottom + 10, 45, line_length), line_width)
 
-    def _update_state(self, dt): #Update cooldown, grace, duration
+    def _tick(self, dt): #Update cooldown, grace, duration
         self.is_hit = False
 
-        #Hit Grace      
+        # Hit Grace      
         if pygame.time.get_ticks() - self.grace_timestamp >= self.config['grace_duration'] * 1000:
             self.grace_active = False
 
-        #Check phasing for hitbox radius
-        if self.is_phasing: self.cur_hitbox = 0
-        else:               self.cur_hitbox = self.hitbox_radius
+        # Phase
+        if pygame.time.get_ticks() - self.phase_recharge_timestamp >= self.config['phase_recharge_delay'] * 1000: # Recharge after CD
+            self.phase_bar += self.config['phase_rate'] * dt * self.scale_rate
+            self.phase_bar = min(self.config['phase_max'], self.phase_bar)
 
-        #Action CD, cannot different action at same time, different CD based on last action
+        # Stamina
+        if self.stamina_bar < 0:
+            self.is_exhausted = True
+            self.scale_rate = 0.7
+        
+        if self.stamina_bar > self.config['stamina_max'] / 4:
+            self.is_exhausted = False
+            self.scale_rate = 1.0
+
+        if pygame.time.get_ticks() - self.stamina_recharge_timestamp >= self.config['stamina_recharge_delay'] * 1000:
+            self.stamina_bar += self.config['stamina_rate'] * dt *  self.scale_rate
+            self.stamina_bar = min(self.config['stamina_max'], self.stamina_bar)
+
+        # Action - internal cd
         if self.action_cd_remaining > 0:
             self.action_cd_remaining -= dt
 
         # Absorb
         if self.absorb_active:
-            self.cur_hitbox += self.config['absorb_radius']
+            self.cur_hitbox = self.config['absorb_radius']
             self.absorb_timer -= dt
             if self.absorb_timer <= 0:
                 self.absorb_active = False
@@ -167,10 +186,15 @@ class Player(GameObject):
         # Attack
         for atk in reversed(self.active_attacks): # read in reverse for safely removing atk
             self._attacking(atk)
+            if atk['target']:
+                for enemy in list(atk['target']): #reduce tick_rate cd 
+                    if atk['target'][enemy] > 0:
+                        atk['target'][enemy] -= dt 
           
     def _get_state(self, keys):
         if self.is_dead: return 'dead'
         if self.grace_active: return 'hit'
+        if self.is_exhausted: return 'exhausted'
         if self.is_phasing: return 'phase'
         if pygame.time.get_ticks() - self.look_attack_timestamp < 400: return 'attack'
         if self.absorb_active: return 'absorb'
@@ -199,22 +223,37 @@ class Player(GameObject):
         self.is_hit = True
 
     def actions(self, keys, click_state):
+        #Hotbar
+        attack_list = ['slash', 'pierce']
+        if keys[pygame.K_1]: self.attack_type = attack_list[0]
+        elif keys[pygame.K_2]: self.attack_type = attack_list[1]
+        self.attack_type_data = self.attack_data[self.attack_type]
+        
+        if self.action_cd_remaining > 0:
+            return
+        
+        stamina_grace = self.stamina_bar > 0 #check before decreasing
         #Absorb
         if (keys[pygame.K_l] or click_state['right']):                                            
             self.absorb_active = True
             self.absorb_timer = self.config['absorb_duration']
+
+            self.stamina_bar -= self.config['absorb_stamina']
             self.action_cd_remaining = self.config['absorb_cd']
-            
+
         #Attack
         if (keys[pygame.K_k] or click_state['left']):
             self.look_attack_timestamp = pygame.time.get_ticks()
-            self.action_cd_remaining = self.attack_type_data['cd']
+
+            self.stamina_bar -= self.attack_type_data['stamina_reduce']
+            self.action_cd_remaining = self.attack_type_data['action_cd']
+
             attack_images = [] #get image and reset if it existed
-            offset_dist = 300
+            offset_dist = 300 * self.attack_type_data['scale']
             angle = math.radians(self.facing_angle)
             for i in range(self.attack_type_data['frame_count']):
                 attack_images.append(get_image(f"attack/{self.attack_type}/{self.attack_type}-{i}.png", 
-                                                    angle=self.facing_angle))
+                                                    angle=self.facing_angle, scale=self.attack_type_data['scale']))
             atk_image_center = ( # get setup pos (static pos)
                 self.rect.centerx + math.cos(angle) * offset_dist,
                 self.rect.centery + math.sin(-angle) * offset_dist
@@ -233,10 +272,16 @@ class Player(GameObject):
                 'frame_timestamp': 0
             }   
             self.active_attacks.append(new_attack)
+        
+        if (keys[pygame.K_l] or click_state['right']) or (
+            keys[pygame.K_k] or click_state['left']):
+            self.stamina_recharge_timestamp = pygame.time.get_ticks()
+            if stamina_grace: self.stamina_bar = max(0, self.stamina_bar)
 
     def absorbed(self, bullet, particles_list): #succesful absorb
-        self.phase_bar = min(2 , self.phase_bar + 0.3)
-        self.action_cd_remaining = max(0 , self.action_cd_remaining - self.config['absorb_cd']/3) # Lower cd if parried
+        self.phase_bar = min(self.config['phase_max'] , self.phase_bar + 0.3)
+        self.stamina_bar = min(self.config['stamina_max'], self.stamina_bar + 0.2)
+        self.absorb_timer = min(self.config['absorb_duration'] , self.absorb_timer + 0.1) # increase duration for each parry
         spawn_particles(bullet.rect.centerx, bullet.rect.centery, CYAN2_0, particles_list, 6) # Absorb Sparks
         self.absorb_count += 1
         if self.absorb_count >= 5:
@@ -253,8 +298,8 @@ class Player(GameObject):
         if atk_type['damage_tick'] == 'single': # hit once after colision
             if enemy in atk['target']:
                 return 
-            atk['target'][enemy] = -1 #just assign random integer 
-            self.action_cd_remaining = max(0 , self.action_cd_remaining - atk_type['cd']/5) # lower cd if succesful single-hit attack
+            atk['target'][enemy] = -1 #flag = already attacked, to add enemy in target
+            # self.stamina_bar = max(0 , self.stamina_bar - atk_type['stamina_reduce']) # lower cd if succesful single-hit attack #skipped feature
 
 
         tick = 0.15
@@ -294,11 +339,11 @@ class Player(GameObject):
         n = 8  # more = smoother coverage
 
         if self.attack_type == 'slash':
-            length = 2 * self.height
-            thickness = self.width / 1.5
+            length = 6.5 * 100
+            thickness = 1.5 * 100
         if self.attack_type == 'pierce': 
-            length = 5.5 * self.height
-            thickness = self.width / 2.5
+            length = 6.5 * 100 * 3
+            thickness = 1.5 * 100
 
         length *= self.attack_type_data['scale']
         thickness *= self.attack_type_data['scale']
@@ -334,19 +379,15 @@ class Player(GameObject):
         self.old_bottom = self.rect.bottom # save old footing
             
         #Phasing movement
-        if keys[pygame.K_LSHIFT] and self.action_cd_remaining <= 0 and not self.grace_active:
-            if self.phase_bar > 0:
-                self.phase_bar -= dt
-                self.cur_hitbox = 0
-                self.is_phasing = True 
-            else:
-                self.is_phasing = False
-            self.phase_barCD_timestamp = pygame.time.get_ticks()  # set CD after phasing
-
+        if keys[pygame.K_LSHIFT] and self.stamina_bar > 0 and self.phase_bar > 0 and not (
+                                     self.grace_active or self.is_exhausted):
+            self.phase_bar -= dt
+            self.cur_hitbox = 0
+            self.is_phasing = True 
+            self.phase_recharge_timestamp = pygame.time.get_ticks()  # set recharge CD after phasing
+            self.stamina_recharge_timestamp = pygame.time.get_ticks()
         else:
-            if pygame.time.get_ticks() - self.phase_barCD_timestamp >= self.config['phase_cd_delay'] * 1000: # Recharge after CD
-                self.phase_bar = min(self.config['phase_max'], self.phase_bar + self.config['phase_rate'] * dt)
-            
+            self.cur_hitbox = self.hitbox_radius
             self.is_phasing = False
 
         if self.is_phasing:
@@ -365,11 +406,11 @@ class Player(GameObject):
                 dx /= length
                 dy /= length
         
-            self.rect.centerx += dx * self.config['speedX'] * dt * self.config['phase_spd']
+            self.rect.centerx += dx * self.config['speedX'] * dt * self.config['phase_spd'] * self.scale_rate
             self.rect.left = max(BG_BORDER_X, self.rect.left)
             self.rect.right = min(BG_WIDTH - BG_BORDER_X, self.rect.right)
             
-            self.rect.centery += dy * self.config['speedY'] * dt * self.config['phase_spd']
+            self.rect.centery += dy * self.config['speedY'] * dt * self.config['phase_spd'] * self.scale_rate
             self.rect.top = max(BG_BORDER_Y, self.rect.top)
             self.rect.bottom = min(GROUND_Y, self.rect.bottom)
             return
@@ -384,14 +425,14 @@ class Player(GameObject):
 
         self.vx += (target_vx - self.vx) * accel * dt
 
-        self.rect.centerx += self.vx * dt
+        self.rect.centerx += self.vx * dt * self.scale_rate
         self.rect.left  = max(BG_BORDER_X, self.rect.left)
         self.rect.right = min(BG_WIDTH - BG_BORDER_X, self.rect.right)
 
         #Vertical movement
         if keys[pygame.K_s]:
             allow_quickfall = self.quickfall_plat_elapsed >= self.config['quickfall_plat_threshold']
-            self.rect.centery += self.config['speedY'] * dt
+            self.rect.centery += self.config['speedY'] * dt * self.scale_rate
 
             if self._on_platform() and not allow_quickfall: 
                 self.rect.bottom = self.current_platform.rect.top
@@ -409,7 +450,7 @@ class Player(GameObject):
         
         if self.is_jumping:
             if keys[pygame.K_w] and not keys[pygame.K_s] and self.jump_duration_elapsed < self.config['jump_duration_threshold']:  # Durasi lompat jika di tahan -> sampai max                            
-                self.rect.centery -= self.config['speedY'] * dt
+                self.rect.centery -= self.config['speedY'] * dt * self.scale_rate
                 self.rect.top = max(BG_BORDER_Y, self.rect.top)
                 self.jump_duration_elapsed += dt
             else:
@@ -426,7 +467,7 @@ class Player(GameObject):
 
             #Reset airborne, cooldown jump, etc jika berada di platform
             if self._on_platform():
-                self.jump_recovery_elapsed += dt
+                self.jump_recovery_elapsed += dt * self.scale_rate
                 self.airborne_elapsed = 0
 
 
@@ -488,21 +529,21 @@ class Player(GameObject):
     
     def _bar_indicator(self):
         # Action bar update
-        self.action_bar_rectMax = pygame.Rect(0, 0, 10, 
-                                        self.rect.height / 2 * self.config['action_cd_max'])
-        self.action_bar_rectMax.centerx = (self.rect.right + 20) if not self.facing_right else (self.rect.left - 20) #kebalikan facing
-        self.action_bar_rectMax.centery = self.rect.centery
+        bar_size = 65
+        self.stamina_bar_max = pygame.Rect(0, 0, 10, bar_size)
+        self.stamina_bar_max.centerx = (self.rect.right + 20) if not self.facing_right else (self.rect.left - 20) #kebalikan facing
+        self.stamina_bar_max.centery = self.rect.centery
         
-        self.action_bar_rect = pygame.Rect(0, 0, self.action_bar_rectMax.width, 
-                                        self.rect.height / 2 * (self.config['action_cd_max'] - self.action_cd_remaining))
-        self.action_bar_rect.x = self.action_bar_rectMax.x
-        self.action_bar_rect.bottom = self.action_bar_rectMax.bottom
+        self.stamina_bar_rect = pygame.Rect(0, 0, self.stamina_bar_max.width, 
+                                        bar_size * (self.stamina_bar / self.config['stamina_max']))
+        self.stamina_bar_rect.x = self.stamina_bar_max.x
+        self.stamina_bar_rect.bottom = self.stamina_bar_max.bottom
 
         # Phasing bar update
-        self.phase_bar_rectMax = pygame.Rect(0, 0, self.rect.width * self.config['phase_max'], 10)
-        self.phase_bar_rectMax.centerx = self.rect.centerx
-        self.phase_bar_rectMax.centery = self.rect.bottom + 10
-        self.phase_bar_rect = pygame.Rect(self.phase_bar_rectMax.left, self.phase_bar_rectMax.top,
+        self.phase_bar_max = pygame.Rect(0, 0, self.rect.width * self.config['phase_max'], 10)
+        self.phase_bar_max.centerx = self.rect.centerx
+        self.phase_bar_max.centery = self.rect.bottom + 10
+        self.phase_bar_rect = pygame.Rect(self.phase_bar_max.left, self.phase_bar_max.top,
                                         self.rect.width * self.phase_bar, 
-                                        self.phase_bar_rectMax.height)
+                                        self.phase_bar_max.height)
 

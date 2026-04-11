@@ -19,9 +19,10 @@ pygame.display.set_caption("Maidenless Danmaku") # LMAOO AI got a hilarious name
 # Danmaku ~ bullet hell in japanese
 
 # ================================================ Game loop setup ==========================================================================================================================================
+atk_data = load_json("player/attack.json")
 draw_loading_screen(screen)
 pygame.display.update()
-preload_assets()
+preload_assets(atk_data)
 
 
 PlayerTest = Player(name="HelicopKun")
