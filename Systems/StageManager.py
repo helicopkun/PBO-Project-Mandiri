@@ -12,6 +12,8 @@ from Systems.ui import get_font
 # Arena (Current stage)
 class StageManager:
     def __init__(self, stages_data):
+        self.cleared = False
+        self.clear_timestamp = 0
         self.win = False
         self.lost = False
         self.stages_data = stages_data
@@ -28,6 +30,18 @@ class StageManager:
             self.lost = True
             return
 
+        for p in self.particles[:]: #safely remove with copying list
+            p.update(dt)
+            if p.lifetime <= 0:
+                self.particles.remove(p)
+
+        if all(not b.alive for b in self.boss_list):
+            if not self.cleared: #one time call
+                self.clear_timestamp = pygame.time.get_ticks()
+                self.bullet_list.clear()
+            self.cleared = True
+            return
+
         for b in self.boss_list:
             b.update(dt, player, self.bullet_list)
 
@@ -36,11 +50,6 @@ class StageManager:
                     if hitbox.colliderect(b.rect):
                         player.attacked(b, atk, self.particles)   
                     
-        for p in self.particles[:]: #safely remove with copying list
-            p.update(dt)
-            if p.lifetime <= 0:
-                self.particles.remove(p)
-        
         for bullet in self.bullet_list[:]: #safely remove with copying list
             bullet.update(dt)
 
@@ -110,6 +119,7 @@ class StageManager:
         self._stage_transition(surface)
         
     def change_stage(self, surface, player):
+        self.cleared = False
         self.stage_counter += 1
         if self.stage_counter <= self.total_stage:
             self.load_stage(surface, player)
@@ -158,6 +168,8 @@ class StageManager:
         self.bullet_list.clear()
         self.boss_list.clear()
         player.active_attacks.clear()
+        player.phase_bar = player.config['phase_max']
+        player.stamina_bar = player.config['stamina_max']
         player.rect.left = BG_BORDER_X + 10
         player.rect.bottom = GROUND_Y
         

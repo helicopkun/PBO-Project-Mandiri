@@ -14,7 +14,7 @@
     "phase_recharge_delay" : 0.6,
 
     "stamina_max" : 5,
-    "stamina_rate" : 1.5,
+    "stamina_rate" : 1.8,
     "stamina_recharge_delay" : 1.4,
 
     "jump_duration_threshold" : 0.4,                    
@@ -24,6 +24,6 @@
 
     "absorb_duration" : 0.3,
     "absorb_stamina": 1,
-    "absorb_cd" : 0.5,
+    "absorb_cd" : 0.67,
     "absorb_radius" : 55
 }

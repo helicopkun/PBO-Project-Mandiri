@@ -116,7 +116,7 @@ class Boss(GameObject):
 
         if dist > self.width*1.5:
             spd = phase['move_speed']
-            spd = max(spd, player.config['speedX'] / 2)
+            spd = min(spd, player.config['speedX'] / 2)
             self.posX += (dx / dist) * spd * dt
             self.posY += (dy / dist) * spd * dt
 

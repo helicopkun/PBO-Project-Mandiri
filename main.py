@@ -7,7 +7,7 @@ from Entities.Player import Player
 
 from Systems.Camera import Camera
 from Systems.StageManager import StageManager
-from Systems.ui import init_font, draw_ui, draw_win, draw_lost, draw_loading_screen
+from Systems.ui import init_font, draw_ui, draw_win, draw_lost, draw_loading_screen, draw_stage_clear, draw_next_stage_arrow
 
 pygame.init()
 init_font()
@@ -81,14 +81,14 @@ while running:
             pygame.display.update()
             drawn = True
         continue
-
-    if all(not b.alive for b in stage.boss_list):
+    
+    if stage.cleared:
         if PlayerTest.rect.right >= BG_WIDTH - BG_BORDER_X:
             stage.change_stage(screen, PlayerTest)
             cx, cy = camera.get_snap()
             clock.tick()
             continue
-    
+
     # Update Entities
     stage.update_entities(dt, PlayerTest)
 
@@ -100,15 +100,18 @@ while running:
     
 
     # Draw objects
-    stage.draw_stage(world_surface)
-
+    stage.draw_stage(world_surface) # add objects inside world
     PlayerTest.draw(world_surface, keys)
-
     stage.draw_entities(world_surface)
     
-    screen.blit(world_surface, (cx, cy))
+    screen.blit(world_surface, (cx, cy)) # display object in camera
     
-    draw_ui(screen, PlayerTest, stage.boss_list)
+    if stage.cleared:
+        draw_stage_clear(screen, pygame.time.get_ticks() - stage.clear_timestamp)
+        draw_next_stage_arrow(screen, pygame.time.get_ticks())
+        
+
+    draw_ui(screen, PlayerTest, stage)
 
     pygame.display.update()
 

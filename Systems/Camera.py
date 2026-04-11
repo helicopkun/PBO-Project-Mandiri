@@ -1,5 +1,6 @@
-import pygame, random
+import random
 from Shared.constants import SCREEN_WIDTH, SCREEN_HEIGHT, BG_WIDTH, BG_WIDTH, BG_HEIGHT, BG_BORDER_X, BG_BORDER_Y
+
 class Camera:
     def __init__(self, player):
         self.offset_x = 0

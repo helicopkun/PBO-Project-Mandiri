@@ -39,7 +39,7 @@ class Player(GameObject):
 
         self.action_cd_remaining = 0
         self.is_exhausted = False
-        self.scale_rate = 1.0
+        self.scale_rate = 1.0 #action efficiency
 
         self.is_jumping = False
         self.jump_duration_elapsed = 0
@@ -74,11 +74,9 @@ class Player(GameObject):
             self._move(keys, dt) 
         
         self._facing_indicator(keys, click_state)
-        self._bar_indicator()
         
         # Actions
-        if not (self.is_exhausted or self.grace_active or self.is_phasing):
-            self.actions(keys, click_state)
+        self.actions(keys, click_state)
                 
     def draw(self, surface, keys):
         #Character
@@ -108,15 +106,7 @@ class Player(GameObject):
                 for hitbox in atk['active_hitboxes']:
                     pygame.draw.rect(surface, RED2_0, hitbox, 2)
 
-        if self.stamina_bar < self.config['stamina_max']:
-            pygame.draw.rect(surface, GREY, self.stamina_bar_max) # BG
-            pygame.draw.rect(surface, YELLOW if not self.is_exhausted else RED2_0, self.stamina_bar_rect)
-            pygame.draw.rect(surface, WHITE, self.stamina_bar_max, 2)
-
-        if self.phase_bar < self.config['phase_max']:
-            pygame.draw.rect(surface, GREY, self.phase_bar_max) # BG
-            pygame.draw.rect(surface, BLUE, self.phase_bar_rect)
-            pygame.draw.rect(surface, WHITE, self.phase_bar_max, 2)
+        
 
         # #Facing indicator - might change to texture
         # line_length = 20
@@ -229,7 +219,7 @@ class Player(GameObject):
         elif keys[pygame.K_2]: self.attack_type = attack_list[1]
         self.attack_type_data = self.attack_data[self.attack_type]
         
-        if self.action_cd_remaining > 0:
+        if self.action_cd_remaining > 0 or self.is_exhausted or self.grace_active or self.is_phasing:
             return
         
         stamina_grace = self.stamina_bar > 0 #check before decreasing
@@ -279,9 +269,10 @@ class Player(GameObject):
             if stamina_grace: self.stamina_bar = max(0, self.stamina_bar)
 
     def absorbed(self, bullet, particles_list): #succesful absorb
-        self.phase_bar = min(self.config['phase_max'] , self.phase_bar + 0.3)
-        self.stamina_bar = min(self.config['stamina_max'], self.stamina_bar + 0.2)
-        self.absorb_timer = min(self.config['absorb_duration'] , self.absorb_timer + 0.1) # increase duration for each parry
+        pygame.time.delay(10)
+        self.stamina_bar = min(self.config['stamina_max'], self.stamina_bar + self.config['absorb_stamina']/1.5)
+        self.absorb_timer = min(self.config['absorb_duration'] , self.absorb_timer + 0.1)
+        self.action_cd_remaining = max(0, self.action_cd_remaining - self.config['absorb_cd']/2)
         spawn_particles(bullet.rect.centerx, bullet.rect.centery, CYAN2_0, particles_list, 6) # Absorb Sparks
         self.absorb_count += 1
         if self.absorb_count >= 5:
@@ -342,7 +333,7 @@ class Player(GameObject):
             length = 6.5 * 100
             thickness = 1.5 * 100
         if self.attack_type == 'pierce': 
-            length = 6.5 * 100 * 3
+            length = 6.5 * 100 * 2.5
             thickness = 1.5 * 100
 
         length *= self.attack_type_data['scale']
@@ -379,7 +370,7 @@ class Player(GameObject):
         self.old_bottom = self.rect.bottom # save old footing
             
         #Phasing movement
-        if keys[pygame.K_LSHIFT] and self.stamina_bar > 0 and self.phase_bar > 0 and not (
+        if keys[pygame.K_LSHIFT] and self.phase_bar > 0 and not (
                                      self.grace_active or self.is_exhausted):
             self.phase_bar -= dt
             self.cur_hitbox = 0
@@ -527,23 +518,3 @@ class Player(GameObject):
         if self.facing in {'right', 'top-right', 'bottom-right'}: self.facing_right = True
         if self.facing in {'left', 'top-left', 'bottom-left'}: self.facing_right = False
     
-    def _bar_indicator(self):
-        # Action bar update
-        bar_size = 65
-        self.stamina_bar_max = pygame.Rect(0, 0, 10, bar_size)
-        self.stamina_bar_max.centerx = (self.rect.right + 20) if not self.facing_right else (self.rect.left - 20) #kebalikan facing
-        self.stamina_bar_max.centery = self.rect.centery
-        
-        self.stamina_bar_rect = pygame.Rect(0, 0, self.stamina_bar_max.width, 
-                                        bar_size * (self.stamina_bar / self.config['stamina_max']))
-        self.stamina_bar_rect.x = self.stamina_bar_max.x
-        self.stamina_bar_rect.bottom = self.stamina_bar_max.bottom
-
-        # Phasing bar update
-        self.phase_bar_max = pygame.Rect(0, 0, self.rect.width * self.config['phase_max'], 10)
-        self.phase_bar_max.centerx = self.rect.centerx
-        self.phase_bar_max.centery = self.rect.bottom + 10
-        self.phase_bar_rect = pygame.Rect(self.phase_bar_max.left, self.phase_bar_max.top,
-                                        self.rect.width * self.phase_bar, 
-                                        self.phase_bar_max.height)
-

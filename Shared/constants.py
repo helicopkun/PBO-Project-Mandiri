@@ -12,8 +12,15 @@ BG_BORDER_Y = (BG_HEIGHT - 1080) // 2 # = 100
 show_hitbox = False
 show_player_hitbox = False
 show_bullet_hitbox = False
-show_atk_hitbox = True
+show_atk_hitbox = False
 show_img_rect = False
+
+
+DEEP_FROST = (18, 32, 54)
+FROST_GLOW = (40, 70, 110)
+NAVY_ICE = (12, 24, 44)
+DESATURATED_CYAN = (30, 80, 100)
+ICY_HIGHLIGHT = (120, 200, 255)
 
 CYAN = (0, 255, 255)
 BLUE = (0, 0, 255)

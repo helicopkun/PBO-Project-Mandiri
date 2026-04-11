@@ -10,6 +10,37 @@ def get_end_pos(x, y, angle, length): # for line might delete later, after getti
     end_y = y + length * math.sin(angle)
     return (end_x, end_y)
 
+def draw_radial_bar(surface, rect, progress, color, width=5):
+    # progress = 1.0 full, 0.0 empty
+    start_angle = math.pi / 2
+    end_angle = math.pi / 2 + (2 * math.pi * progress)
+
+    pygame.draw.arc(surface, color, rect, start_angle, end_angle, width)
+
+def draw_slanted_bar(surface, color, rect, offset, width = 0):
+    x, y, w, h = rect
+    if w <= offset: return
+    points = [
+        (x + offset, y),
+        (x + w, y),
+        (x + w - offset, y + h),
+        (x, y + h)
+    ]
+    pygame.draw.polygon(surface, color, points, width) #paints inside canvas
+
+def draw_slanted_bar_alpha(surface, color, rect, offset, width=0):
+    x, y, w, h = rect
+    if w <= offset: return
+    points = [
+        (offset,      0),  # top left
+        (w,           0),  # top right
+        (w - offset,  h),  # bottom right
+        (0,           h)   # bottom left
+    ]
+    temp = pygame.Surface((w + offset, h), pygame.SRCALPHA) #make new canvas
+    pygame.draw.polygon(temp, color, points, width) #paint into new canvas
+    surface.blit(temp, (x, y)) #add canvas to canvas
+
 def circle_collide(c1_pos, r1, c2_pos, r2):
     dx = c1_pos[0] - c2_pos[0] 
     dy = c1_pos[1] - c2_pos[1]
