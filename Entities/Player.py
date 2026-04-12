@@ -1,6 +1,6 @@
 import pygame, math
 from Shared.constants import*
-from Shared.utils import load_json, get_image, update_animation
+from Shared.utils import load_json, get_sound, get_image, update_animation
 from Entities.GameObject import GameObject
 from Entities.Particle import spawn_particles
 
@@ -21,7 +21,6 @@ class Player(GameObject):
 
         self.max_hp = self.config['max_hp']
         self.hp = self.max_hp
-        self.absorb_count = 0 
         self.is_dead = False
         self.is_hit = False
         self.grace_active = False # i-frame setelah kena hit
@@ -33,13 +32,6 @@ class Player(GameObject):
         self.is_phasing = False
         self.phase_bar = self.config['phase_max']
         self.phase_recharge_timestamp = 0
-        
-        self.stamina_bar = self.config['stamina_max']
-        self.stamina_recharge_timestamp = 0
-
-        self.action_cd_remaining = 0
-        self.is_exhausted = False
-        self.scale_rate = 1.0 #action efficiency
 
         self.is_jumping = False
         self.jump_duration_elapsed = 0
@@ -51,8 +43,16 @@ class Player(GameObject):
         self.quickfall_plat_elapsed = 0
         self.old_bottom = self.rect.bottom
         
-
+        self.stamina_bar = self.config['stamina_max']
+        self.stamina_recharge_timestamp = 0
+        self.is_exhausted = False #action allowance
+        self.scale_rate = 1.0 #action efficiency 
+        
+        self.action_cd_remaining = 0
+        
         self.absorb_active = False
+        self.absorb_count = 0 
+        self.absorbed_this_window = 0
         
         self.attack_type = attack
         self.attack_type_data = self.attack_data[attack]
@@ -121,6 +121,10 @@ class Player(GameObject):
 
         # Stamina
         if self.stamina_bar < 0:
+            if not self.is_exhausted: # cheap 1 time play sfx
+                sound = get_sound("player_exhausted.wav")
+                sound.set_volume(0.5)
+                sound.play()
             self.is_exhausted = True
             self.scale_rate = 0.7
         
@@ -174,6 +178,9 @@ class Player(GameObject):
 
     def take_damage(self, particles_list):
         self.hp -= 1
+        sound = get_sound("player_hit.wav")
+        sound.set_volume(0.5)
+        sound.play()
         if self.hp <= 0:
             self.is_dead = True
             return
@@ -185,17 +192,24 @@ class Player(GameObject):
     def _actions(self, keys, click_state):
         #Hotbar
         attack_list = ['slash', 'pierce']
-        if keys[pygame.K_1]: self.attack_type = attack_list[0]
-        elif keys[pygame.K_2]: self.attack_type = attack_list[1]
-        self.attack_type_data = self.attack_data[self.attack_type]
+        picked_attack = self.attack_type
+        if keys[pygame.K_1]: picked_attack = attack_list[0]
+        elif keys[pygame.K_2]: picked_attack = attack_list[1]
+        if picked_attack != self.attack_type:
+            sound = get_sound("player_select.wav")
+            sound.set_volume(0.5)
+            sound.play()
+            self.attack_type = picked_attack
+            self.attack_type_data = self.attack_data[self.attack_type]
         
-        if self.action_cd_remaining > 0 or self.is_exhausted or self.grace_active or self.is_phasing:
+        if self.action_cd_remaining > 0 or self.is_exhausted or self.grace_active or self.is_phasing or self.absorb_active:
             return
         
         stamina_grace = self.stamina_bar > 0 #check before decreasing
         #Absorb
         if (keys[pygame.K_l] or click_state['right']):                                            
             self.absorb_active = True
+            self.absorbed_this_window = 0
             self.absorb_timer = self.config['absorb_duration']
 
             self.stamina_bar -= self.config['absorb_stamina']
@@ -203,6 +217,9 @@ class Player(GameObject):
 
         #Attack
         if (keys[pygame.K_k] or click_state['left']):
+            sound = get_sound(self.attack_type_data['sfx'])
+            sound.set_volume(1.0)
+            sound.play()
             self.look_attack_timestamp = pygame.time.get_ticks()
 
             self.stamina_bar -= self.attack_type_data['stamina_reduce']
@@ -243,8 +260,12 @@ class Player(GameObject):
         self.stamina_bar = min(self.config['stamina_max'], self.stamina_bar + self.config['absorb_stamina']/1.5)
         self.absorb_timer = min(self.config['absorb_duration'] , self.absorb_timer + 0.1)
         self.action_cd_remaining = max(0, self.action_cd_remaining - self.config['absorb_cd']/2)
-        spawn_particles(bullet.rect.centerx, bullet.rect.centery, CYAN2_0, particles_list, 6) # Absorb Sparks
+       
+        if self.absorbed_this_window >= 3:  # max 3 stacks per click
+            return
+        self.absorbed_this_window += 1
         self.absorb_count += 1
+        spawn_particles(bullet.rect.centerx, bullet.rect.centery, CYAN2_0, particles_list, 6) # Absorb Sparks
         if self.absorb_count >= 5:
             self.hp = min(self.hp + 1, self.max_hp)
             self.absorb_count = 0
@@ -405,6 +426,9 @@ class Player(GameObject):
 
         if keys[pygame.K_w] and on_plat and not self.is_jumping:
             if self.jump_recovery_elapsed >= self.config['jump_recovery_threshold']:
+                sound = get_sound("player_jump.wav")
+                sound.set_volume(0.9)
+                sound.play()
                 self.is_jumping = True                  
                 self.jump_duration_elapsed = 0
                 self.jump_recovery_elapsed = 0

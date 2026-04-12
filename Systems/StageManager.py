@@ -1,11 +1,11 @@
 import pygame, random
 
 from Shared.constants import*
-from Shared.utils import load_json, get_image, circle_collide
+from Shared.utils import load_json, get_image, get_sound, circle_collide
 
 from Entities.GameObject import GameObject
 from Entities.Boss import Boss
-from Entities.BossFactory import generate_boss_data, generate_random_boss
+from Entities.BossFactory import generate_random_boss
 
 from Systems.ui import get_font
 
@@ -169,6 +169,7 @@ class StageManager:
         self.bullet_list.clear()
         self.boss_list.clear()
         player.active_attacks.clear()
+        player.absorb_count = 0
         player.phase_bar = player.config['phase_max']
         player.stamina_bar = player.config['stamina_max']
         player.hp = player.max_hp

@@ -8,25 +8,38 @@ Heavily inspired (kind of copied ngl) by Touhou: Hero of the ice fairy
 A combination of BOTH
 so you can suffer more hahajahahahja
 
+Credits
+Me - Coded
+Lovely feet - helped create the design (friend)
+Caitlynn - ideas and suggestion (friend)
+
+JDWasabi - some sfx (guy on itch.io)
+Chequered Ink - some sfx (guy on itch.io)
+
+Inspiration : Touhou: Hero of the Ice Fairy.
+
 HOW TO PLAY
 W = Jump or up
 A = Left
 D = Right
 S = Quick-fall or down
 
+1 or 2 = Change attack type
 K or M1 = Attack
 L or M2 = Absorb
 LSHIFT = Phase
+Esc = Pause
+R = Retry (when game over / finished)
 
 Objective - Kill bosses, or smthng idk
 
 Mechanic:
  - Action cd: an internal cd for each action like attacking, and parrying. can only do action when there is no cooldown, succesful action leads to lower cd
- - Attack:  >Slash : Mid-ranged attack, short duration, short cd
+ - Attack:  >Slash : Short-ranged attack, short duration, short cd
             >Pierce : Long-ranged attack, mid duration, long cd
             >Spin? : not yet implemented
  - Phasing : will phase through bullets, last 2 sec max, will recharge, cannot do action while phasing 
- - Absorb: will absorb bullets in vicinity, successfully absorbing 1 bullet grant 1 stack of Baka, 5 Baka stacks heals 1 HP
+ - Absorb: will absorb bullets in vicinity, successfully absorbing 1 bullet grant 1 stack of Baka(limit 3 stack per absorb window), 5 Baka stacks heals 1 HP
 
 Customization: 
     Stages; 
@@ -45,14 +58,30 @@ in the same Game loop
 im finna get copyrighted bruh
 this game literally looks like a chopped version of Touhou: Hero of the ice fairy
 
-Credits
-Me - Coded
-Lovely feet - helped create the design
-Caitlynn - some nice idea and suggestion
-Inspiration : Touhou: Hero of the Ice Fairy.
 
 
 
+
+========= Main Feature ============
+
+Sistem Boss Multi-Fase — Setiap boss memiliki beberapa fase dengan pola gerakan dan serangan yang berbeda, semakin sulit di setiap fase
+Sistem Stamina — Stamina digunakan untuk attack dan dapat habis, memaksa pemain untuk mengatur serangan secara strategis
+Sistem Absorb — Pemain dapat menyerap peluru musuh untuk menambah stack Baka, 5 stack bisa heal player 1hp
+Sistem Phase (Phasing) — Pemain dapat melewati peluru dengan menggunakan phase bar
+Pola Peluru Beragam — Boss menggunakan 9 pola serangan: fan, circle, chaos, random, spiral, burst, cross, aimed, dan random
+Stage Manager — Sistem manajemen stage yang mendukung multiple arena dengan boss, platform, dan background berbeda per stage (kurang assets for BG and Platform)
+Kamera Dinamis — Kamera mengikuti pemain dengan smooth follow dan efek camera shake saat terkena serangan
+Boss Acak — Stage dapat menggunakan boss yang digenerate secara prosedural dengan stat, pola, dan fase yang acak
+UI Informatif — HUD menampilkan HP, stamina, phase bar, hotbar serangan, radial absorb timer, dan boss HP bar secara real-time
+
+Unimplemented / Half-Executed feature
+GUI - too lazy, atleast until more than 2 Stages
+SFX - half-way there, too lazy to continue (finding sfx is hard)
+BGM - even harder than sfx
+Textures/Stages - too lazy, asked AI to generate some
+Attacks - too lazy for keyframe editing
+Animation - as you have guessed, too lazy
+Game Balancing - i tried my best ;-; 
 
 
 ========= Technical Description ============
@@ -60,46 +89,66 @@ Inspiration : Touhou: Hero of the Ice Fairy.
 Proyek ini dirancang dengan menerapkan prinsip Pemrograman Berorientasi Objek (OOP) sebagai fondasi utamanya dan ini adalah beberapa penjelasan singkat
 mengenai beberapa sistem game "Maidenless Danmaku":
 
-1. Hierarki GameObject
-    Setiap entitas dalam game (Pemain, Boss, Platform, dan Peluru) merupakan turunan dari base class GameObject. Struktur ini memungkinkan:
-        Fisika Terenkapsulasi: 
-        Penanganan hitbox berbasis Rect (persegi) maupun Circle (lingkaran) dikelola secara terpusat dalam satu kelas.
+Entity System
+Semua entitas game (Player, Boss, Bullet) mewarisi dari GameObject, yang mengelola posisi, hitbox persegi, hitbox lingkaran, dan rendering sprite. Posisi disimpan sebagai float (posX, posY) untuk pergerakan yang halus, lalu disinkronkan ke pygame.Rect setiap frame melalui sync_rect() (khusus Boss dan Bullet).
 
-        Polimorfisme: 
-        Setiap entitas mengimplementasikan logika update() dan draw() mereka sendiri, namun tetap menggunakan mesin rendering yang sama pada world-surface.
+Image Cache
+Asset gambar dimuat sekali dan disimpan dalam dictionary image_cache dengan key berupa tuple (path, size, scale, flipx, flipy, angle). Ini mencegah pembacaan disk berulang dan memungkinkan preloading seluruh variasi rotasi peluru saat loading screen.
 
-2. Player Feature
-    Sistem Pergerakan (move):
-        Delta-Time (dt) Scaling: 
-        Memastikan kecepatan gerak konsisten di berbagai frame rate (FPS).
+Collision Detection
+Tabrakan antara peluru dan pemain menggunakan circle collision (circle_collide()) berdasarkan rumus jarak Euclidean, memberikan hitbox yang lebih akurat dan adil dibanding rectangle collision untuk objek yang bergerak cepat.
 
-        State Priority: 
-        Mengatur urutan logika antara gravitasi, jumping state, dan clamping Platform untuk mencegah karakter bergetar (jitter) saat mendarat.
+Boss & Stage Data (JSON-Driven)
+Seluruh data boss dan stage disimpan dalam file JSON, memisahkan data dari logika game. Boss mendukung konfigurasi per-fase untuk HP, pola tembak, kecepatan, dan jenis gerakan. Stage mendefinisikan background, platform, dan daftar boss yang akan dimunculkan.
 
-        Mekanisme Berbasis Waktu:
-        Fitur Quick-fall dan Jump Recovery dikelola menggunakan stopwatch internal (elapsed timers). Pemain harus menekan tombol melampaui durasi threshold tertentu untuk memicu aksi, memberikan kontrol yang lebih taktil dan responsif.
+Kamera
+Sistem kamera menghitung target offset berdasarkan posisi pemain dan margin layar, lalu melakukan interpolasi linear (lerp) setiap frame untuk efek smooth follow. Camera shake diimplementasikan dengan menambahkan offset acak selama durasi tertentu.
 
-        Logika Crossover (Sticky Zone): 
-        Untuk mencegah efek Tunneling (karakter menembus Platform saat bergerak terlalu cepat), game ini menggunakan logika perbandingan posisi old_bottom (posisi frame sebelumnya) dengan posisi saat ini untuk memastikan pendaratan yang presisi pada platform.
 
-    Sistem Serangan (attack)
-        Rotasi & Penskalaan Dinamis:
-        Posisi dan sudut seluruh rantai hitbox dihitung secara real-time berdasarkan arah hadap karakter atau posisi mouse. Hal ini memberikan fleksibilitas serangan yang dinamis di ruang dua dimensi tanpa memerlukan aset gambar yang banyak untuk setiap sudut arah.
+Sistem Serangan (Chain Hitbox)
+Serangan pemain menggunakan sistem chain hitbox — serangkaian pygame.Rect kecil yang disusun memanjang dari posisi pemain ke arah cursor, membentuk jalur serangan. Hitbox-hitbox ini digenerate sekali saat serangan dipicu (_generate_attack_hitbox()), lalu sebagian darinya diaktifkan secara bertahap tiap frame berdasarkan animasi yang sedang berjalan (_attacking()).
 
-        Sistem Hitbox Berantai (Chain Hitbox Style):
-        Berbeda dengan hitbox persegi tunggal yang sering terdistorsi saat diputar, sistem ini menggunakan serangkaian lingkaran kolisi kecil yang disusun berantai. Hal ini memungkinkan gambar senjata/serangan diputar secara bebas (360 derajat tapi di snap 15*) sementara area deteksi serangan tetap presisi dan mengikuti bentuk visual tanpa perubahan skala (distortion-free).
+    Alur kerja serangan:
 
-        Logika Active Frames:
-        Mengadopsi mekanik fighting game profesional, di mana serangan dibagi menjadi fase-fase spesifik. Hitbox hanya akan aktif dan mampu menghasilkan damage pada frame tertentu dalam sebuah animasi. Ini mencegah serangan terasa "setiap saat aktif" dan memaksa pemain untuk memperhatikan timing serangan mereka.
+Trigger — Pemain klik kiri atau tekan K. Arah serangan dihitung dari sudut antara posisi pemain dan cursor menggunakan math.atan2, lalu di-snap ke kelipatan 15°
+Generate Hitbox — _generate_attack_hitbox() membuat n=8 rect yang tersusun di sepanjang vektor arah serangan, dengan panjang dan ketebalan berbeda tergantung jenis serangan
+Active Frame Window — Setiap jenis serangan memiliki active_frames: [start, end] yang didefinisikan di JSON. Hitbox hanya aktif saat frame animasi berada di dalam window ini
+Sweep per Jenis Serangan:
 
-        Durasi Berbasis Animasi (Animation-Based Duration):
-        Durasi hidup (lifetime) sebuah serangan tidak ditentukan oleh timer statis, melainkan terikat langsung pada progres frame animasi. Sinkronisasi ini memastikan bahwa apa yang dilihat pemain di layar (visual) selalu akurat dengan apa yang terjadi di mesin deteksi kolisi (mekanik).
+slash — Hitbox aktif bergerak seperti sapuan: hanya sebagian kecil (4 rect) di ujung depan yang aktif, bergeser dari pangkal ke ujung seiring progress animasi. Cocok untuk serangan area melengkung
+pierce — Hitbox tumbuh dari pangkal ke ujung (grow): semakin banyak rect yang aktif seiring animasi berjalan. Cocok untuk tusukan yang menembus
+default — Seluruh hitbox aktif sekaligus (spin / all-at-once) (not yet implemented, no animation for it)
 
-        Dynamic Hitbox Slicing (Sweep & Grow Effect):
-        Mekanisme hitbox menggunakan teknik List Slicing yang terikat pada progres frame animasi. Sistem menghitung "Leading Edge" (ujung depan) dan "Trailing Edge" (ekor belakang) secara real-time. Hal ini memastikan area serangan tidak muncul sekaligus, melainkan "menyapu" ruang secara bertahap mengikuti gerakan visual senjata, memberikan presisi kolisi yang jauh lebih realistis.
+Damage Tick — Serangan mendukung dua mode kerusakan: single (hanya sekali per musuh per serangan) dan multi (hit setiap 0.15 detik selama kontak)
+Cleanup — Serangan dihapus dari active_attacks otomatis saat cur_frame melampaui frame_count
 
-        Multi-Attack & Animasi Independen (list-based):
-        Serangan dikelola menggunakan list active_attack sebagai kontainer objek data mandiri. Setiap serangan dalam list memiliki lifecycle sendiri. Serangan bisa tetap aktif di arena (lingering) meskipun karakter sudah berpindah ke state lain (lari/lompat), memberikan gameplay yang lebih cair. Sistem secara otomatis menghapus objek serangan dari list segera setelah durasi atau frame animasi terakhir tercapai, menjaga efisiensi penggunaan memori (RAM).
 
-3. Manajemen Aset yang Efisien
-    Sistem Image Cache: Terdapat fungsi image_cache yang berfungsi untuk mencegah pemuatan ulang file .png yang sama berkali-kali. Hal ini secara drastis mengurangi penggunaan memori dan mencegah terjadinya stuttering atau patah-patah saat game berjalan.
+
+========= Struktur Project ============
+
+project/
+├── main.py                  # Entry point, game loop utama
+├── Entities/
+│   ├── Player.py            # Logika pemain, input, serangan, dan collision
+│   ├── Boss.py              # Logika boss, gerakan, dan pola tembak
+│   ├── Bullet.py            # Entitas peluru
+│   ├── GameObject.py        # Base class untuk semua entitas
+│   └── Particle.py          # Sistem partikel untuk efek visual
+├── Systems/
+│   ├── Camera.py            # Sistem kamera dengan smooth follow dan screen shake
+│   ├── StageManager.py      # Manajemen stage, loading, dan entity update
+│   └── ui.py                # Rendering seluruh elemen HUD
+├── Shared/
+│   ├── constants.py         # Konstanta global (resolusi, warna, flag debug)
+│   └── utils.py             # Fungsi utilitas (image cache, sound cache, draw helpers)
+├── assets/
+│   ├── bgm/                 # File musik latar (.ogg / .mp3)
+│   ├── sfx/                 # File efek suara (.wav)
+│   ├── bullet/              # Sprite peluru
+│   ├── cirno/               # Sprite karakter pemain
+│   ├── ui/                  # Asset UI (hp bar, ikon, dll)
+│   └── Cirno.ttf            # Font kustom
+└── data/
+    ├── stages/              # Data stage dalam format JSON
+    ├── bosses/              # Data boss dalam format JSON
+    └── player/              # Data pemain dan serangan dalam format JSON

@@ -13,20 +13,11 @@
         "main_plat_img": "ice_mainplatform.png",
         "plat_img": "ice_platform.png",
         "platforms": [
-            [100, 300], [400, 450], [700, 280], [950, 420], [1200, 300], [1500, 400]
-        ],
-        "bosses": ["Ember", "Fang"]
-    },
-    "3": {
-        "bg": "icy_cave.png",
-        "main_plat_img": "ice_mainplatform.png",
-        "plat_img": "ice_platform.png",
-        "platforms": [
             [200, 350], [550, 480], [900, 300]
         ],
         "bosses": ["Glacius"]
     },
-    "4": {
+    "3": {
         "bg": "icy_cave.png",
         "main_plat_img": "ice_mainplatform.png",
         "plat_img": "ice_platform.png",
@@ -35,7 +26,7 @@
         ],
         "bosses": ["Tide", "Storm"]
     },
-    "5": {
+    "4": {
         "bg": "icy_cave.png",
         "main_plat_img": "ice_mainplatform.png",
         "plat_img": "ice_platform.png",
@@ -44,7 +35,7 @@
         ],
         "bosses": ["Vortex"]
     },
-    "6": {
+    "5": {
         "bg": "icy_cave.png",
         "main_plat_img": "ice_mainplatform.png",
         "plat_img": "ice_platform.png",
@@ -53,7 +44,7 @@
         ],
         "bosses": ["Tempest"]
     },
-    "7": {
+    "6": {
         "bg": "icy_cave.png",
         "main_plat_img": "ice_mainplatform.png",
         "plat_img": "ice_platform.png",
@@ -62,7 +53,7 @@
         ],
         "bosses": ["Wraith"]
     },
-    "8": {
+    "7": {
         "bg": "icy_cave.png",
         "main_plat_img": "ice_mainplatform.png",
         "plat_img": "ice_platform.png",
@@ -70,5 +61,14 @@
             [300, 350], [800, 500], [1300, 350]
         ],
         "bosses": ["Oblivion"]
+    },
+    "8": {
+        "bg": "icy_cave.png",
+        "main_plat_img": "ice_mainplatform.png",
+        "plat_img": "ice_platform.png",
+        "platforms": [
+            [100, 300], [400, 450], [700, 280], [950, 420], [1200, 300], [1500, 400]
+        ],
+        "bosses": ["Ember", "Fang"]
     }
 }

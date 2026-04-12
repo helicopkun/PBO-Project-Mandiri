@@ -1,5 +1,7 @@
 import pygame, math, random
 from Shared.constants import*
+from Shared.utils import get_sound
+
 from Entities.GameObject import GameObject
 from Entities.Bullet import Bullet
 from Entities.Particle import spawn_particles
@@ -59,9 +61,11 @@ class Boss(GameObject):
             
         self.fire_timer -= dt
         if self.fire_timer <= 0:
-            self.fire_timer = phase['rate']
-            if pygame.time.get_ticks() - player.grace_timestamp >= 1000: #delay after player get hit and first spawn
-                self._shoot(player, bullet_list, phase)
+            self.fire_timer = phase['rate'] 
+            if pygame.time.get_ticks() - player.grace_timestamp < 1000 or ( #delay after player get hit and or absorb 3x
+                player.absorbed_this_window >= 3 and player.absorb_active): 
+                return
+            self._shoot(player, bullet_list, phase)
             
     def draw(self, surface):
         if not self.alive: return
@@ -262,6 +266,9 @@ class Boss(GameObject):
 
     def take_damage(self, atk_dmg, particles_list):
         self.hp -= atk_dmg
+        sound = get_sound("boss_hit.wav")
+        sound.set_volume(0.5)
+        sound.play()
         self.grace_timestamp = pygame.time.get_ticks()
         self.grace_active = True
         spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, particles_list, 10) # Hit feedback
@@ -270,6 +277,9 @@ class Boss(GameObject):
             self._change_phase(particles_list)
             
     def _change_phase(self, particles_list):
+        sound = get_sound("boss_phase.wav")
+        sound.set_volume(1.0)
+        sound.play()
         spawn_particles(self.rect.centerx, self.rect.centery, RED,  particles_list, count=30, is_burst=True) # Trigger massive death particle burst each transition 
         if self.current_phase > self.total_phases:
             self.alive = False

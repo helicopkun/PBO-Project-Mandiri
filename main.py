@@ -24,13 +24,19 @@ draw_loading_screen(screen)
 pygame.display.update()
 preload_assets(atk_data)
 
-
 player = Player(name="HelicopKun")
 #might do hotbar inventory-based attacks 1.slash, 2.Pierce, 3...
 
 STAGES_ICY = load_json("stages/icy_cave.json")
-stage = StageManager(STAGES_ICY)
+STAGES_RANDOM_ICY = load_json("stages/icy_random.json")
+
+stage = StageManager(STAGES_RANDOM_ICY)
 stage.load_stage(screen, player)
+
+#Test BGM - Music by Misty Studio - https://www.youtube.com/watch?v=2UvlqIUa0B0
+# pygame.mixer.music.load("assets/bgm/Strongest Maidenless Fairy.ogg")
+# pygame.mixer.music.set_volume(0.3)
+# pygame.mixer.music.play(-1)
 
 camera = Camera(player) #screen canvas position
 world_surface = pygame.Surface((BG_WIDTH, BG_HEIGHT)) #background canvas
@@ -52,8 +58,10 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 paused = not paused
+                # pygame.mixer.music.unpause()
 
     if paused:
+        # pygame.mixer.music.pause()
         screen.blit(world_surface, (cx, cy))
         draw_ui(screen, player, stage)
         draw_pause(screen)

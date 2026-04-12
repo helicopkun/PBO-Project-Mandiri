@@ -41,12 +41,12 @@ def circle_collide(c1_pos, r1, c2_pos, r2):
     dy = c1_pos[1] - c2_pos[1]
     return dx*dx + dy*dy <= (r1 + r2) ** 2 # dx^2 + dy^2 <= (r_1 + r_2)^2 rumus kolisi lingkaran
 
-assets = {} 
-def _load_asset(image_path): #load base image into cache
+base_img = {}   
+def _load_base_img(image_path): #load base image into cache
     path = "assets/" + image_path
-    if path not in assets:
-        assets[path] = pygame.image.load(path).convert_alpha()
-    return assets[path]
+    if path not in base_img:
+        base_img[path] = pygame.image.load(path).convert_alpha()
+    return base_img[path]
 
 image_cache = {} 
 def get_image(image_path, rect=None, scale = None, # load or make a new image in cache (into the assigned rectangle if available)
@@ -61,13 +61,19 @@ def get_image(image_path, rect=None, scale = None, # load or make a new image in
     key = (image_path, size, scale, flipx, flipy, angle)
  
     if key not in image_cache:
-        image = _load_asset(image_path)
+        image = _load_base_img(image_path)
         image = pygame.transform.flip(image, flipx, flipy)
         if size: image = pygame.transform.scale(image, size)
         if scale: image = pygame.transform.scale_by(image, scale)
         image = pygame.transform.rotate(image, angle)
         image_cache[key] = image
     return image_cache[key]
+
+sound_cache = {}
+def get_sound(path):
+    if path not in sound_cache:
+        sound_cache[path] = pygame.mixer.Sound(f"assets/sfx/{path}")
+    return sound_cache[path]
 
 def preload_assets(atk_data): #preload same image, but multiple variation
     # Character states

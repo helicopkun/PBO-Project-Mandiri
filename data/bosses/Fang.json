@@ -15,7 +15,7 @@
         },
         "3": {
             "max_hp": 40, "movement": "random", "move_speed": 500, "y_axis": 400,
-            "rate": 0.45, "pattern": "fan", "num_bullet": 8, "bullet_spd": 460,
+            "rate": 0.45, "pattern": "fan", "num_bullet": 8, "bullet_spd": 260,
             "bullet_size": 7, "bullet_img": "bullet-2"
         }
     }

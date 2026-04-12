@@ -8,7 +8,7 @@ def generate_boss_data(num_phases=None): # generate boss stat randomly
     if num_phases is None:
         num_phases = random.randint(2, 5)  # random amount of phases
     movement = ['bop', 'box', 'chase', 'random', 'middle']
-    img = ['enemy.png']
+    img = ['enemy.png', 'Ember.png', 'Fang.png', 'Glacius.png', 'Oblivion.png', 'Storm.png', 'Tempest.png', 'Tide.png', 'Vortex.png', 'Wraith.png']
     size = random.randint(100, 250)
     color = [random.randint(100, 250),
                 random.randint(100, 250),
@@ -24,7 +24,7 @@ def generate_boss_data(num_phases=None): # generate boss stat randomly
     max_rate = 1.0
     for phase in range(1, num_phases + 1):
         boss_phase[str(phase)] = {
-            'max_hp': random.randint(10, 25),
+            'max_hp': random.randint(35, 60),
             'movement': random.choice(movement),
             'move_speed': random.randint(100, 700),
             'y_axis': random.randint(150, 600),

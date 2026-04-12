@@ -9,7 +9,7 @@ BG_BORDER_X = (BG_WIDTH - 1920) // 2   # = 200
 BG_BORDER_Y = (BG_HEIGHT - 1080) // 2 # = 100
 
 #Debugging
-show_hitbox = True
+show_hitbox = False
 show_player_hitbox = False
 show_bullet_hitbox = False
 show_atk_hitbox = False

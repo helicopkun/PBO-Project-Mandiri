@@ -1,0 +1,38 @@
+{
+    "1": {
+        "bg": "icy_cave.png",
+        "main_plat_img": "ice_mainplatform.png",
+        "plat_img": "ice_platform.png",
+        "platforms": [
+            [300, 300], [750, 450], [1200, 300]
+        ],
+        "bosses": ["random"]
+    },
+    "2": {
+        "bg": "icy_cave.png",
+        "main_plat_img": "ice_mainplatform.png",
+        "plat_img": "ice_platform.png",
+        "platforms": [
+            [200, 400], [600, 280], [1000, 480], [1400, 320]
+        ],
+        "bosses": ["random"]
+    },
+    "3": {
+        "bg": "icy_cave.png",
+        "main_plat_img": "ice_mainplatform.png",
+        "plat_img": "ice_platform.png",
+        "platforms": [
+            [300, 350], [800, 500], [1300, 350]
+        ],
+        "bosses": ["random"]
+    },
+    "4": {
+        "bg": "icy_cave.png",
+        "main_plat_img": "ice_mainplatform.png",
+        "plat_img": "ice_platform.png",
+        "platforms": [
+            [100, 300], [400, 450], [700, 280], [950, 420], [1200, 300], [1500, 400]
+        ],
+        "bosses": ["random", "random"]
+    }
+}
