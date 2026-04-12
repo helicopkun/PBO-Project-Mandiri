@@ -1,0 +1,37 @@
+{
+    "boss_img": "Oblivion.png",
+    "size": 200,
+    "color": [255, 255, 255],
+    "phase": {
+        "1": {
+            "max_hp": 60, "movement": "middle", "move_speed": 120, "y_axis": 300,
+            "rate": 0.9, "pattern": "circle", "num_bullet": 12, "bullet_spd": 280,
+            "bullet_size": 12, "bullet_img": "bullet-orb"
+        },
+        "2": {
+            "max_hp": 65, "movement": "bop", "move_speed": 220, "y_axis": 350,
+            "rate": 0.7, "pattern": "spiral", "num_bullet": 10, "bullet_spd": 320,
+            "bullet_size": 11, "bullet_img": "bullet-2"
+        },
+        "3": {
+            "max_hp": 70, "movement": "box", "move_speed": 300, "y_axis": 400,
+            "rate": 0.55, "pattern": "cross", "num_bullet": 8, "bullet_spd": 370,
+            "bullet_size": 10, "bullet_img": "bullet-1"
+        },
+        "4": {
+            "max_hp": 75, "movement": "chase", "move_speed": 380, "y_axis": 450,
+            "rate": 0.4, "pattern": "aimed", "num_bullet": 7, "bullet_spd": 430,
+            "bullet_size": 9, "bullet_img": "bullet-3"
+        },
+        "5": {
+            "max_hp": 80, "movement": "random", "move_speed": 450, "y_axis": 490,
+            "rate": 0.3, "pattern": "chaos", "num_bullet": 16, "bullet_spd": 480,
+            "bullet_size": 8, "bullet_img": "bullet-orb"
+        },
+        "6": {
+            "max_hp": 90, "movement": "random", "move_speed": 520, "y_axis": 530,
+            "rate": 0.2, "pattern": "burst", "num_bullet": 18, "bullet_spd": 520,
+            "bullet_size": 7, "bullet_img": "bullet-2"
+        }
+    }
+}

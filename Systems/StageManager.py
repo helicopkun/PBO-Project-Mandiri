@@ -5,6 +5,7 @@ from Shared.utils import load_json, get_image, circle_collide
 
 from Entities.GameObject import GameObject
 from Entities.Boss import Boss
+from Entities.BossFactory import generate_boss_data, generate_random_boss
 
 from Systems.ui import get_font
 
@@ -24,7 +25,7 @@ class StageManager:
         self.boss_list = []
         self.bullet_list = []
         self.particles = []
-
+    
     def update_entities(self, dt, player):
         if player.is_dead: 
             self.lost = True
@@ -110,7 +111,7 @@ class StageManager:
 
         for b in cur_stage['bosses']:
             if b == 'random': 
-                self.boss_list.append(self._generate_random_boss())
+                self.boss_list.append(generate_random_boss())
             else:
                 boss_data = load_json(f"bosses/{b}.json")
                 new_boss = Boss(b, boss_data, random.uniform(BG_BORDER_X + 1000, BG_WIDTH - BG_BORDER_X), random.choice([1 , -1]))
@@ -120,6 +121,7 @@ class StageManager:
         
     def change_stage(self, surface, player):
         self.cleared = False
+        self.clear_timestamp = 0
         self.stage_counter += 1
         if self.stage_counter <= self.total_stage:
             self.load_stage(surface, player)
@@ -129,7 +131,6 @@ class StageManager:
     def retry(self, surface, player):
         self.win = False
         self.lost = False
-        player.hp = player.max_hp
         player.is_dead = False
         self.stage_counter = 1
         self.load_stage(surface, player)
@@ -170,6 +171,7 @@ class StageManager:
         player.active_attacks.clear()
         player.phase_bar = player.config['phase_max']
         player.stamina_bar = player.config['stamina_max']
+        player.hp = player.max_hp
         player.rect.left = BG_BORDER_X + 10
         player.rect.bottom = GROUND_Y
         
@@ -179,46 +181,3 @@ class StageManager:
         image = "platform/" + image
         self.plat_list.append(GameObject(BG_BORDER_X + coordinate[0] + 80 , (GROUND_Y - coordinate[1]), 300, image_path=image, 
                                          size_offsetx=plat_size_offsetx, size_offsety=plat_size_offsety))
-    
-    def _generate_boss_data(self, num_phases=None): # generate boss stat randomly
-        if num_phases is None:
-            num_phases = random.randint(2, 5)  # random amount of phases
-        movement = ['bop', 'box', 'chase', 'random', 'middle']
-        img = ['enemy.png']
-        size = random.randint(100, 250)
-        color = [random.randint(100, 250),
-                 random.randint(100, 250),
-                 random.randint(100, 250)]
-        boss_data = {}
-        boss_data['boss_img'] = random.choice(img)
-        boss_data['size'] = size
-        boss_data['color'] = color
-        boss_phase = {}
-        patterns = ['circle', 'chaos', 'random', 'fan', 'spiral', 'burst', 'cross', 'aimed']
-        images = ['bullet-1', 'bullet-2', 'bullet-3', 'bullet-orb']
-        max_bullet = 7
-        max_rate = 1.0
-        for phase in range(1, num_phases + 1):
-            boss_phase[str(phase)] = {
-                'max_hp': random.randint(10, 25),
-                'movement': random.choice(movement),
-                'move_speed': random.randint(100, 700),
-                'y_axis': random.randint(150, 600),
-                'rate': random.uniform(0.2, max_rate),
-                'pattern': random.choice(patterns),
-
-                'num_bullet': random.randint(3, max_bullet),
-                'bullet_spd': random.randint(200, 500),
-                'bullet_size': random.randint(5, 12),
-                'bullet_img': random.choice(images)
-            }
-        boss_data['phase'] = boss_phase
-
-        return boss_data
-
-    def _generate_random_boss(self):
-        start_x = random.uniform(BG_WIDTH//2, BG_WIDTH - BG_BORDER_X)
-        direction=random.choice([1 , -1])
-        boss = Boss(f"Random boss", self._generate_boss_data(), start_x, direction)
-        return boss
-

@@ -1,0 +1,32 @@
+{
+    "boss_img": "Wraith.png",
+    "size": 140,
+    "color": [60, 255, 160],
+    "phase": {
+        "1": {
+            "max_hp": 40, "movement": "chase", "move_speed": 280, "y_axis": 300,
+            "rate": 0.9, "pattern": "aimed", "num_bullet": 3, "bullet_spd": 320,
+            "bullet_size": 10, "bullet_img": "bullet-1"
+        },
+        "2": {
+            "max_hp": 50, "movement": "chase", "move_speed": 350, "y_axis": 380,
+            "rate": 0.65, "pattern": "burst", "num_bullet": 7, "bullet_spd": 380,
+            "bullet_size": 9, "bullet_img": "bullet-orb"
+        },
+        "3": {
+            "max_hp": 55, "movement": "chase", "move_speed": 420, "y_axis": 430,
+            "rate": 0.45, "pattern": "fan", "num_bullet": 9, "bullet_spd": 420,
+            "bullet_size": 8, "bullet_img": "bullet-2"
+        },
+        "4": {
+            "max_hp": 65, "movement": "random", "move_speed": 500, "y_axis": 480,
+            "rate": 0.3, "pattern": "chaos", "num_bullet": 14, "bullet_spd": 460,
+            "bullet_size": 7, "bullet_img": "bullet-3"
+        },
+        "5": {
+            "max_hp": 75, "movement": "chase", "move_speed": 550, "y_axis": 530,
+            "rate": 0.25, "pattern": "burst", "num_bullet": 16, "bullet_spd": 500,
+            "bullet_size": 6, "bullet_img": "bullet-1"
+        }
+    }
+}

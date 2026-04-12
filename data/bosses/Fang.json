@@ -1,0 +1,22 @@
+{
+    "boss_img": "Fang.png",
+    "size": 130,
+    "color": [255, 60, 80],
+    "phase": {
+        "1": {
+            "max_hp": 30, "movement": "chase", "move_speed": 350, "y_axis": 300,
+            "rate": 0.9, "pattern": "aimed", "num_bullet": 3, "bullet_spd": 380,
+            "bullet_size": 9, "bullet_img": "bullet-1"
+        },
+        "2": {
+            "max_hp": 35, "movement": "chase", "move_speed": 420, "y_axis": 350,
+            "rate": 0.65, "pattern": "burst", "num_bullet": 6, "bullet_spd": 420,
+            "bullet_size": 8, "bullet_img": "bullet-orb"
+        },
+        "3": {
+            "max_hp": 40, "movement": "random", "move_speed": 500, "y_axis": 400,
+            "rate": 0.45, "pattern": "fan", "num_bullet": 8, "bullet_spd": 460,
+            "bullet_size": 7, "bullet_img": "bullet-2"
+        }
+    }
+}

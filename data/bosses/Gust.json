@@ -1,0 +1,17 @@
+{
+    "boss_img": "enemy.png",
+    "size": 120,
+    "color": [180, 255, 220],
+    "phase": {
+        "1": {
+            "max_hp": 25, "movement": "bop", "move_speed": 200, "y_axis": 300,
+            "rate": 1.2, "pattern": "fan", "num_bullet": 5, "bullet_spd": 240,
+            "bullet_size": 9, "bullet_img": "bullet-orb"
+        },
+        "2": {
+            "max_hp": 30, "movement": "random", "move_speed": 280, "y_axis": 380,
+            "rate": 0.85, "pattern": "aimed", "num_bullet": 4, "bullet_spd": 300,
+            "bullet_size": 8, "bullet_img": "bullet-1"
+        }
+    }
+}

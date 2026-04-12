@@ -1,0 +1,27 @@
+{
+    "boss_img": "Vortex.png",
+    "size": 160,
+    "color": [180, 80, 255],
+    "phase": {
+        "1": {
+            "max_hp": 45, "movement": "middle", "move_speed": 100, "y_axis": 300,
+            "rate": 0.9, "pattern": "spiral", "num_bullet": 6, "bullet_spd": 260,
+            "bullet_size": 10, "bullet_img": "bullet-2"
+        },
+        "2": {
+            "max_hp": 55, "movement": "bop", "move_speed": 200, "y_axis": 380,
+            "rate": 0.65, "pattern": "spiral", "num_bullet": 10, "bullet_spd": 310,
+            "bullet_size": 9, "bullet_img": "bullet-3"
+        },
+        "3": {
+            "max_hp": 60, "movement": "random", "move_speed": 320, "y_axis": 430,
+            "rate": 0.5, "pattern": "cross", "num_bullet": 8, "bullet_spd": 360,
+            "bullet_size": 9, "bullet_img": "bullet-1"
+        },
+        "4": {
+            "max_hp": 70, "movement": "chase", "move_speed": 400, "y_axis": 500,
+            "rate": 0.35, "pattern": "spiral", "num_bullet": 14, "bullet_spd": 420,
+            "bullet_size": 7, "bullet_img": "bullet-orb"
+        }
+    }
+}

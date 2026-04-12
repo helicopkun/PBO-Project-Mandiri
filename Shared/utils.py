@@ -5,11 +5,6 @@ def load_json(path):
         data = json.load(f)
     return data
 
-def get_end_pos(x, y, angle, length): # for line might delete later, after getting a texture for facing indicator
-    end_x = x + length * math.cos(angle)
-    end_y = y + length * math.sin(angle)
-    return (end_x, end_y)
-
 def draw_radial_bar(surface, rect, progress, color, width=5):
     # progress = 1.0 full, 0.0 empty
     start_angle = math.pi / 2

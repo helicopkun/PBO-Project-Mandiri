@@ -1,0 +1,22 @@
+{
+    "boss_img": "Tide.png",
+    "size": 155,
+    "color": [60, 140, 255],
+    "phase": {
+        "1": {
+            "max_hp": 38, "movement": "bop", "move_speed": 180, "y_axis": 380,
+            "rate": 1.0, "pattern": "spiral", "num_bullet": 8, "bullet_spd": 230,
+            "bullet_size": 11, "bullet_img": "bullet-2"
+        },
+        "2": {
+            "max_hp": 45, "movement": "box", "move_speed": 240, "y_axis": 430,
+            "rate": 0.7, "pattern": "cross", "num_bullet": 8, "bullet_spd": 280,
+            "bullet_size": 10, "bullet_img": "bullet-3"
+        },
+        "3": {
+            "max_hp": 55, "movement": "random", "move_speed": 320, "y_axis": 470,
+            "rate": 0.5, "pattern": "spiral", "num_bullet": 12, "bullet_spd": 340,
+            "bullet_size": 9, "bullet_img": "bullet-1"
+        }
+    }
+}

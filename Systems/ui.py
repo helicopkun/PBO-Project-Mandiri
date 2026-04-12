@@ -192,11 +192,6 @@ def draw_ui(screen, player, stage): #ts is my weakness
         indicator_rect.centerx = indicator_rect.centerx - 20
         pygame.draw.rect(screen, b.circle_color, indicator_rect)
         
-
-        # pygame.draw.rect(screen, BLACK, (bar_x, SCREEN_HEIGHT - font_size - bar_thickness + offset * boss_counter, bar_length_max, bar_thickness))
-        # pygame.draw.rect(screen, RED2_0, (bar_x, SCREEN_HEIGHT - font_size - bar_thickness + offset * boss_counter, bar_length, bar_thickness))
-        # pygame.draw.rect(screen, WHITE, (bar_x, SCREEN_HEIGHT - font_size - bar_thickness + offset * boss_counter, bar_length_max, bar_thickness), 2)
-         # color indicator
         boss_counter += 1
 
 def draw_stage_clear(screen, timer_ms):
@@ -231,3 +226,15 @@ def draw_loading_screen(screen):
     text = font.render("Loading...", True, WHITE)
     screen.fill(BLACK)
     screen.blit(text, text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)))
+
+def draw_pause(screen):
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 100))
+    screen.blit(overlay, (0, 0))
+    
+    font = get_font(72)
+    text = font.render("PAUSED", True, WHITE)
+    hint = get_font(28).render("Press ESC to resume", True, GREY)
+    
+    screen.blit(text, text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40)))
+    screen.blit(hint, hint.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40)))

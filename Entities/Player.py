@@ -1,6 +1,6 @@
 import pygame, math
 from Shared.constants import*
-from Shared.utils import load_json, get_end_pos, get_image, update_animation
+from Shared.utils import load_json, get_image, update_animation
 from Entities.GameObject import GameObject
 from Entities.Particle import spawn_particles
 
@@ -76,7 +76,7 @@ class Player(GameObject):
         self._facing_indicator(keys, click_state)
         
         # Actions
-        self.actions(keys, click_state)
+        self._actions(keys, click_state)
                 
     def draw(self, surface, keys):
         #Character
@@ -106,36 +106,6 @@ class Player(GameObject):
                 for hitbox in atk['active_hitboxes']:
                     pygame.draw.rect(surface, RED2_0, hitbox, 2)
 
-        
-
-        # #Facing indicator - might change to texture
-        # line_length = 20
-        # line_width = 7
-        # if self.facing == 'left':
-        #     pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.centery),
-        #                                      (self.rect.left - line_length - 20, self.rect.centery), line_width)
-        # if self.facing == 'right':
-        #     pygame.draw.line(surface, WHITE, (self.rect.right + 20, self.rect.centery),
-        #                                      (self.rect.right + line_length + 20, self.rect.centery), line_width)
-        # if self.facing == 'up':
-        #     pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.top - 20),
-        #                                      (self.rect.centerx, self.rect.top - line_length - 20), line_width)
-        # if self.facing == 'down':
-        #     pygame.draw.line(surface, WHITE, (self.rect.centerx, self.rect.bottom + 20),
-        #                                      (self.rect.centerx, self.rect.bottom + line_length + 20), line_width)
-
-        # if self.facing == 'top-left':
-        #     pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.top - 20),
-        #                                     get_end_pos(self.rect.left - 20, self.rect.top - 20, 45, line_length), line_width)
-        # if self.facing == 'top-right':
-        #     pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.top - 10),
-        #                                     get_end_pos(self.rect.right + 10, self.rect.top - 10, -45, line_length), line_width)
-        # if self.facing == 'bottom-left':
-        #     pygame.draw.line(surface, WHITE, (self.rect.left - 20, self.rect.bottom + 20),
-        #                                     get_end_pos(self.rect.left - 20, self.rect.bottom + 20, -45, line_length), line_width)
-        # if self.facing == 'bottom-right':
-        #     pygame.draw.line(surface, WHITE, (self.rect.right + 10, self.rect.bottom + 10),
-        #                                     get_end_pos(self.rect.right + 10, self.rect.bottom + 10, 45, line_length), line_width)
 
     def _tick(self, dt): #Update cooldown, grace, duration
         self.is_hit = False
@@ -212,7 +182,7 @@ class Player(GameObject):
         spawn_particles(self.rect.centerx, self.rect.centery, RED2_0, particles_list, 10)
         self.is_hit = True
 
-    def actions(self, keys, click_state):
+    def _actions(self, keys, click_state):
         #Hotbar
         attack_list = ['slash', 'pierce']
         if keys[pygame.K_1]: self.attack_type = attack_list[0]

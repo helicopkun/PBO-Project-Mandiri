@@ -1,0 +1,22 @@
+{
+    "boss_img": "Storm.png",
+    "size": 145,
+    "color": [200, 240, 80],
+    "phase": {
+        "1": {
+            "max_hp": 35, "movement": "middle", "move_speed": 120, "y_axis": 500,
+            "rate": 1.1, "pattern": "random", "num_bullet": 8, "bullet_spd": 220,
+            "bullet_size": 11, "bullet_img": "bullet-orb"
+        },
+        "2": {
+            "max_hp": 40, "movement": "bop", "move_speed": 200, "y_axis": 500,
+            "rate": 0.75, "pattern": "random", "num_bullet": 12, "bullet_spd": 270,
+            "bullet_size": 10, "bullet_img": "bullet-2"
+        },
+        "3": {
+            "max_hp": 50, "movement": "random", "move_speed": 280, "y_axis": 500,
+            "rate": 0.55, "pattern": "chaos", "num_bullet": 14, "bullet_spd": 310,
+            "bullet_size": 9, "bullet_img": "bullet-3"
+        }
+    }
+}

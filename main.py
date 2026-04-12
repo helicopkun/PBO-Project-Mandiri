@@ -7,7 +7,7 @@ from Entities.Player import Player
 
 from Systems.Camera import Camera
 from Systems.StageManager import StageManager
-from Systems.ui import init_font, draw_ui, draw_win, draw_lost, draw_loading_screen, draw_stage_clear, draw_next_stage_arrow
+from Systems.ui import init_font, draw_ui, draw_win, draw_lost, draw_loading_screen, draw_stage_clear, draw_next_stage_arrow, draw_pause
 
 pygame.init()
 init_font()
@@ -25,20 +25,21 @@ pygame.display.update()
 preload_assets(atk_data)
 
 
-PlayerTest = Player(name="HelicopKun")
+player = Player(name="HelicopKun")
 #might do hotbar inventory-based attacks 1.slash, 2.Pierce, 3...
 
 STAGES_ICY = load_json("stages/icy_cave.json")
 stage = StageManager(STAGES_ICY)
-stage.load_stage(screen, PlayerTest)
+stage.load_stage(screen, player)
 
-camera = Camera(PlayerTest) #screen canvas position
+camera = Camera(player) #screen canvas position
 world_surface = pygame.Surface((BG_WIDTH, BG_HEIGHT)) #background canvas
 
 drawn = False
 clock = pygame.time.Clock()
 
 running = True
+paused = False
 # ================================================ Game loop ==========================================================================================================================================
 
 while running:
@@ -48,6 +49,16 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                paused = not paused
+
+    if paused:
+        screen.blit(world_surface, (cx, cy))
+        draw_ui(screen, player, stage)
+        draw_pause(screen)
+        pygame.display.update()
+        continue 
 
     #Update input
     cx, cy = camera.get_offset()
@@ -67,14 +78,14 @@ while running:
     #Update current stage
     if stage.lost or stage.win:
         if keys[pygame.K_r]:
-            stage.retry(screen, PlayerTest)
+            stage.retry(screen, player)
             cx, cy = camera.get_snap() # snap to default pos (border, ground)
             clock.tick() #reset clock, so it doesnt make entity teleport
             drawn = False
         elif not drawn:
-            pygame.time.delay(1000)
             if stage.lost:
-                PlayerTest.draw(world_surface, keys)
+                pygame.time.delay(1000)
+                player.draw(world_surface, keys)
                 draw_lost(screen)
             elif stage.win: 
                 draw_win(screen)
@@ -83,25 +94,25 @@ while running:
         continue
     
     if stage.cleared:
-        if PlayerTest.rect.right >= BG_WIDTH - BG_BORDER_X:
-            stage.change_stage(screen, PlayerTest)
+        if player.rect.right >= BG_WIDTH - BG_BORDER_X:
+            stage.change_stage(screen, player)
             cx, cy = camera.get_snap()
             clock.tick()
             continue
 
     # Update Entities
-    stage.update_entities(dt, PlayerTest)
+    stage.update_entities(dt, player)
 
-    if PlayerTest.is_hit: camera.trigger_shake()
+    if player.is_hit: camera.trigger_shake()
     camera.update(dt)
     cx, cy = camera.get_offset()
 
-    PlayerTest.update(keys, click_state, dt, stage.plat_list)
+    player.update(keys, click_state, dt, stage.plat_list)
     
 
     # Draw objects
     stage.draw_stage(world_surface) # add objects inside world
-    PlayerTest.draw(world_surface, keys)
+    player.draw(world_surface, keys)
     stage.draw_entities(world_surface)
     
     screen.blit(world_surface, (cx, cy)) # display object in camera
@@ -111,7 +122,7 @@ while running:
         draw_next_stage_arrow(screen, pygame.time.get_ticks())
         
 
-    draw_ui(screen, PlayerTest, stage)
+    draw_ui(screen, player, stage)
 
     pygame.display.update()
 

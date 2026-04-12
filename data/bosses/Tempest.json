@@ -1,19 +1,27 @@
 {
-    "boss_img": "enemy.png",
-    "size": 175,
-    "color": [255, 160, 50],
-
+    "boss_img": "Tempest.png",
+    "size": 170,
+    "color": [80, 200, 140],
     "phase": {
-        "1": {"max_hp": 25, "move_speed": 200, "y_axis": 250, "rate": 1.4, "pattern": "fan",
-            "num_bullet": 5, "bullet_spd": 300, "bullet_size": 9, "bullet_img": "bullet-2"},
-
-        "2": {"max_hp": 20, "move_speed": 80,  "y_axis": 120, "rate": 2.2, "pattern": "circle",
-            "num_bullet": 5, "bullet_spd": 200, "bullet_size": 8, "bullet_img": "bullet-1"},
-
-        "3": {"max_hp": 28, "move_speed": 320, "y_axis": 350, "rate": 1.0, "pattern": "chaos",
-            "num_bullet": 6, "bullet_spd": 380, "bullet_size": 10, "bullet_img": "bullet-3"},
-
-        "4": {"max_hp": 22, "move_speed": 100, "y_axis": 150, "rate": 2.0, "pattern": "circle",
-            "num_bullet": 6, "bullet_spd": 220, "bullet_size": 8, "bullet_img": "bullet-1"}
+        "1": {
+            "max_hp": 50, "movement": "bop", "move_speed": 200, "y_axis": 320,
+            "rate": 0.85, "pattern": "fan", "num_bullet": 9, "bullet_spd": 290,
+            "bullet_size": 11, "bullet_img": "bullet-3"
+        },
+        "2": {
+            "max_hp": 58, "movement": "box", "move_speed": 280, "y_axis": 390,
+            "rate": 0.65, "pattern": "cross", "num_bullet": 8, "bullet_spd": 340,
+            "bullet_size": 10, "bullet_img": "bullet-1"
+        },
+        "3": {
+            "max_hp": 65, "movement": "random", "move_speed": 360, "y_axis": 450,
+            "rate": 0.45, "pattern": "spiral", "num_bullet": 12, "bullet_spd": 390,
+            "bullet_size": 9, "bullet_img": "bullet-2"
+        },
+        "4": {
+            "max_hp": 72, "movement": "chase", "move_speed": 450, "y_axis": 500,
+            "rate": 0.3, "pattern": "chaos", "num_bullet": 15, "bullet_spd": 450,
+            "bullet_size": 8, "bullet_img": "bullet-orb"
+        }
     }
 }
