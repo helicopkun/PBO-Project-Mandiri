@@ -260,7 +260,6 @@ class Player(GameObject):
 
     def absorbed(self, bullet, particles_list): #succesful absorb
         if self.absorbed_this_window >= self.config['absorbed_this_window_max']: return
-        print("here")
         self.absorbed_this_window += 1
         self.absorb_count += 1
         self.phase_bar = min(self.config['phase_max'], self.phase_bar + self.config['phase_max']/4)
