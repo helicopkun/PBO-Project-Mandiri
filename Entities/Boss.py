@@ -69,8 +69,12 @@ class Boss(GameObject):
         if not self.alive: return
         color = self.boss_data['color']
         if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
-            self.draw_hitcircle(surface, color, 6, -1) #draw hitbox here is more like indicator in the middle, color for phase color
             super().draw_self(surface)
+        indicator_rect = pygame.Rect(0,0, 25, 25)
+        indicator_rect.midbottom = self.rect.midtop
+        indicator_rect.centery -= 5
+        pygame.draw.rect(surface, color, indicator_rect, 0, 5, 5, 5)
+        pygame.draw.rect(surface, WHITE, indicator_rect, 2, 5, 5, 5)
     
 
     def _move(self, dt, phase, player):
