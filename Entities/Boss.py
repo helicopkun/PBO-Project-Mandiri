@@ -62,17 +62,15 @@ class Boss(GameObject):
         self.fire_timer -= dt
         if self.fire_timer <= 0:
             self.fire_timer = phase['rate'] 
-            if pygame.time.get_ticks() - player.grace_timestamp < 1000 or ( #delay after player get hit and or absorb 3x
-                player.absorbed_this_window >= 3 and player.absorb_active): 
-                return
-            self._shoot(player, bullet_list, phase)
+            if pygame.time.get_ticks() - player.grace_timestamp >= 1000: 
+                self._shoot(player, bullet_list, phase)
             
-    def draw(self, surface):
+    def draw_self(self, surface):
         if not self.alive: return
         color = self.boss_data['color']
         if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
-            self.draw_hitcircle(surface, color, 6) #draw hitbox here is more like indicator in the middle, color for phase color
-            self.draw_self(surface)
+            self.draw_hitcircle(surface, color, 6, -1) #draw hitbox here is more like indicator in the middle, color for phase color
+            super().draw_self(surface)
     
 
     def _move(self, dt, phase, player):

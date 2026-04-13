@@ -4,7 +4,7 @@
                 "scale": 1.0, "duration": 0.2, 
                 "active_frames": [2, 8], "frame_count": 10},
 
-    "pierce":    {"damage": 5, "damage_tick": "single", "sfx": "player_pierce.wav",
+    "pierce":    {"damage": 4.5, "damage_tick": "single", "sfx": "player_pierce.wav",
                 "stamina_reduce": 1, "action_cd": 0.6,
                 "scale": 0.8, "duration": 0.6,
                 "active_frames": [7, 10], "frame_count": 10}

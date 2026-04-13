@@ -30,7 +30,7 @@ player = Player(name="HelicopKun")
 STAGES_ICY = load_json("stages/icy_cave.json")
 STAGES_RANDOM_ICY = load_json("stages/icy_random.json")
 
-stage = StageManager(STAGES_RANDOM_ICY)
+stage = StageManager(STAGES_ICY)
 stage.load_stage(screen, player)
 
 #Test BGM - Music by Misty Studio - https://www.youtube.com/watch?v=2UvlqIUa0B0
@@ -60,6 +60,7 @@ while running:
                 paused = not paused
                 # pygame.mixer.music.unpause()
 
+    cx, cy = camera.get_offset()
     if paused:
         # pygame.mixer.music.pause()
         screen.blit(world_surface, (cx, cy))
@@ -69,7 +70,6 @@ while running:
         continue 
 
     #Update input
-    cx, cy = camera.get_offset()
     keys = pygame.key.get_pressed()
     click_state = {
         'left': False,
@@ -93,7 +93,7 @@ while running:
         elif not drawn:
             if stage.lost:
                 pygame.time.delay(1000)
-                player.draw(world_surface, keys)
+                player.draw_self(world_surface)
                 draw_lost(screen)
             elif stage.win: 
                 draw_win(screen)
@@ -120,7 +120,7 @@ while running:
 
     # Draw objects
     stage.draw_stage(world_surface) # add objects inside world
-    player.draw(world_surface, keys)
+    player.draw_self(world_surface)
     stage.draw_entities(world_surface)
     
     screen.blit(world_surface, (cx, cy)) # display object in camera
@@ -129,7 +129,6 @@ while running:
         draw_stage_clear(screen, pygame.time.get_ticks() - stage.clear_timestamp)
         draw_next_stage_arrow(screen, pygame.time.get_ticks())
         
-
     draw_ui(screen, player, stage)
 
     pygame.display.update()

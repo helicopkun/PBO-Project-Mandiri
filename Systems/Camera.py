@@ -55,3 +55,4 @@ class Camera:
             shake_x = random.randint(-intensity, intensity)
             shake_y = random.randint(-intensity, intensity)
         return int(self.offset_x + shake_x), int(self.offset_y + shake_y)
+    

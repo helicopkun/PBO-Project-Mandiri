@@ -22,8 +22,9 @@
     "airborne_threshold" : 0.1,
     "quickfall_plat_threshold" : 0.175,
 
-    "absorb_duration" : 0.3,
-    "absorb_stamina": 1,
-    "absorb_cd" : 0.67,
+    "absorbed_this_window_max": 3,
+    "absorb_duration" : 0.75,
+    "absorb_stamina": 1.75,
+    "absorb_cd" : 1.25,
     "absorb_radius" : 55
 }

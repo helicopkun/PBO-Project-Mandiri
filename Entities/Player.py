@@ -77,16 +77,17 @@ class Player(GameObject):
         
         # Actions
         self._actions(keys, click_state)
-                
-    def draw(self, surface, keys):
-        #Character
+
+        #Character Image
         self.image_path = f"cirno/{self._get_state(keys)}.png"
         self.image = get_image(image_path=self.image_path, flipx=0 if self.facing_right else 1, rect=self.rect, 
                                                                                             size_offsetx=50, 
                                                                                             size_offsety=30)
+                
+    def draw_self(self, surface):
         self.image.set_alpha(100 if self.is_phasing else 255)
         if not (self.grace_active and pygame.time.get_ticks() % 200 < 100): #efek kedip saat kena hit
-            self.draw_self(surface)
+            super().draw_self(surface)
             
         if show_player_hitbox: self.draw_hitcircle(surface, color=YELLOW, hitbox_radius=self.cur_hitbox, border_width=3)
         
@@ -125,6 +126,8 @@ class Player(GameObject):
                 sound = get_sound("player_exhausted.wav")
                 sound.set_volume(0.5)
                 sound.play()
+            self.absorb_active = False
+            self.active_attacks.clear()
             self.is_exhausted = True
             self.scale_rate = 0.7
         
@@ -146,6 +149,7 @@ class Player(GameObject):
             self.absorb_timer -= dt
             if self.absorb_timer <= 0:
                 self.absorb_active = False
+                self.absorbed_this_window = 0
 
         # Attack
         for atk in reversed(self.active_attacks): # read in reverse for safely removing atk
@@ -209,7 +213,6 @@ class Player(GameObject):
         #Absorb
         if (keys[pygame.K_l] or click_state['right']):                                            
             self.absorb_active = True
-            self.absorbed_this_window = 0
             self.absorb_timer = self.config['absorb_duration']
 
             self.stamina_bar -= self.config['absorb_stamina']
@@ -256,15 +259,14 @@ class Player(GameObject):
             if stamina_grace: self.stamina_bar = max(0, self.stamina_bar)
 
     def absorbed(self, bullet, particles_list): #succesful absorb
-        pygame.time.delay(10)
-        self.stamina_bar = min(self.config['stamina_max'], self.stamina_bar + self.config['absorb_stamina']/1.5)
-        self.absorb_timer = min(self.config['absorb_duration'] , self.absorb_timer + 0.1)
-        self.action_cd_remaining = max(0, self.action_cd_remaining - self.config['absorb_cd']/2)
-       
-        if self.absorbed_this_window >= 3:  # max 3 stacks per click
-            return
+        if self.absorbed_this_window >= self.config['absorbed_this_window_max']: return
+        print("here")
         self.absorbed_this_window += 1
         self.absorb_count += 1
+        self.phase_bar = min(self.config['phase_max'], self.phase_bar + self.config['phase_max']/4)
+        self.stamina_bar = min(self.config['stamina_max'], self.stamina_bar + self.config['absorb_stamina']/5)
+        self.absorb_timer = min(self.config['absorb_duration'] , self.absorb_timer + self.config['absorb_duration']/3)
+        # self.action_cd_remaining = max(0, self.action_cd_remaining - self.config['absorb_cd']/2)
         spawn_particles(bullet.rect.centerx, bullet.rect.centery, CYAN2_0, particles_list, 6) # Absorb Sparks
         if self.absorb_count >= 5:
             self.hp = min(self.hp + 1, self.max_hp)
@@ -361,13 +363,14 @@ class Player(GameObject):
         self.old_bottom = self.rect.bottom # save old footing
             
         #Phasing movement
-        if keys[pygame.K_LSHIFT] and self.phase_bar > 0 and not (
-                                     self.grace_active or self.is_exhausted):
-            self.phase_bar -= dt
-            self.cur_hitbox = 0
-            self.is_phasing = True 
-            self.phase_recharge_timestamp = pygame.time.get_ticks()  # set recharge CD after phasing
+        if keys[pygame.K_LSHIFT] and not (self.grace_active or self.is_exhausted):
+            self.phase_recharge_timestamp = pygame.time.get_ticks()
             self.stamina_recharge_timestamp = pygame.time.get_ticks()
+        
+        if keys[pygame.K_LSHIFT] and not (self.grace_active or self.is_exhausted) and self.phase_bar > 0:
+                self.phase_bar -= dt
+                self.cur_hitbox = 0
+                self.is_phasing = True 
         else:
             self.cur_hitbox = self.hitbox_radius
             self.is_phasing = False
@@ -380,8 +383,8 @@ class Player(GameObject):
 
             if dy == 0: 
                 dx = 0.5 if self.facing_right else -0.5 #keep moving if keys arent pressed
-            if keys[pygame.K_a]: dx = -1 
-            if keys[pygame.K_d]: dx = 1
+            if keys[pygame.K_d] and not keys[pygame.K_a]: dx = 1
+            if keys[pygame.K_a] and not keys[pygame.K_d]: dx = -1 
 
             if dx != 0 and dy != 0:
                 length = math.hypot(dx, dy)
@@ -402,8 +405,8 @@ class Player(GameObject):
         target_vx = 0
         accel = self.config['accel'] 
 
-        if keys[pygame.K_a] and not keys[pygame.K_d]: target_vx = -self.config['speedX']
         if keys[pygame.K_d] and not keys[pygame.K_a]: target_vx =  self.config['speedX']
+        if keys[pygame.K_a] and not keys[pygame.K_d]: target_vx = -self.config['speedX']
 
         self.vx += (target_vx - self.vx) * accel * dt
 
@@ -424,7 +427,7 @@ class Player(GameObject):
         if keys[pygame.K_s] and self._on_platform(): self.quickfall_plat_elapsed += dt
         else :                                       self.quickfall_plat_elapsed = 0
 
-        if keys[pygame.K_w] and on_plat and not self.is_jumping:
+        if keys[pygame.K_w] and on_plat and not (self.is_jumping or keys[pygame.K_s]):
             if self.jump_recovery_elapsed >= self.config['jump_recovery_threshold']:
                 sound = get_sound("player_jump.wav")
                 sound.set_volume(0.9)
@@ -454,7 +457,6 @@ class Player(GameObject):
             if self._on_platform():
                 self.jump_recovery_elapsed += dt * self.scale_rate
                 self.airborne_elapsed = 0
-
 
     def _facing_indicator(self, keys, click_state):
         #Movement facing indicator

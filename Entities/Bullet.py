@@ -1,4 +1,4 @@
-from Shared.constants import CYAN, BG_WIDTH, BG_HEIGHT
+from Shared.constants import CYAN, YELLOW, BG_WIDTH, BG_HEIGHT, show_bullet_hitbox
 from Entities.GameObject import GameObject
 
           
@@ -18,6 +18,10 @@ class Bullet(GameObject):
         self.sync_rect()
         # self.rect.centerx = int(self.posX)
         # self.rect.centery = int(self.posY)
+
+    def draw_self(self, surface):
+        super().draw_self(surface)
+        if show_bullet_hitbox: self.draw_hitcircle(surface, YELLOW)
         
     def out_of_bounds(self):
         return self.rect.right < -50 or self.rect.left > BG_WIDTH + 50 or self.rect.top > BG_HEIGHT or self.rect.bottom < -50

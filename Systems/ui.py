@@ -79,9 +79,9 @@ def draw_ui(screen, player, stage): #ts is my weakness
     #Boss overlay
     boss_count = len(stage.boss_list)
     overlay_h = 120 + max(0, (boss_count - 1) * 80)
-    right_overlay = pygame.Surface((580, overlay_h), pygame.SRCALPHA)
+    right_overlay = pygame.Surface((600, overlay_h), pygame.SRCALPHA)
     right_overlay.fill((0, 0, 0, 70))
-    screen.blit(right_overlay, (SCREEN_WIDTH - 580, SCREEN_HEIGHT - overlay_h))
+    screen.blit(right_overlay, (SCREEN_WIDTH - 600, SCREEN_HEIGHT - overlay_h))
 
     # Player UI
     # Name
@@ -146,12 +146,21 @@ def draw_ui(screen, player, stage): #ts is my weakness
     screen.blit(p_text, (20, SCREEN_HEIGHT - font_size - 10))
     screen.blit(image, player_hp_img_rect)
 
-    #Absorb
+    #Absorb duration + window max
     icon_rect = pygame.Rect(0, 0, 60, 60)
     icon_rect.midleft = p_rect.midright
     icon_rect.centerx += 10
     icon = get_image(f"cirno/absorb_icon.png", icon_rect)
+
+    counter_font = get_font(24)
+    counter_text = counter_font.render(f"Absorbed: {player.absorbed_this_window}/3", True, 
+                                        YELLOW if player.absorbed_this_window >= 3 else WHITE)
+    counter_rect = counter_text.get_rect(midleft=(icon_rect.right + 8, icon_rect.centery))
+    draw_slanted_bar_alpha(screen, (0, 0, 0, 140), counter_rect.inflate(16, 4), 8)
+
+    screen.blit(counter_text, counter_rect)
     screen.blit(icon, icon_rect)
+    
 
     if player.absorb_active:
         progress = min(1.0, player.absorb_timer / player.config['absorb_duration'])
@@ -203,7 +212,7 @@ def draw_stage_clear(screen, timer_ms):
 
 def draw_next_stage_arrow(screen, tick):
     pulse = abs(pygame.math.Vector2(1, 0).x * (tick % 1000 - 500)) / 500  # 0→1→0
-    x = int(SCREEN_WIDTH - 100 + pulse * 20)  # bounces right
+    x = int(SCREEN_WIDTH - 175 + pulse * 50)  # bounces right
     y = SCREEN_HEIGHT // 2
     points = [(x, y - 70), (x + 80, y), (x, y + 70)]
     pygame.draw.polygon(screen, YELLOW, points)
@@ -238,3 +247,4 @@ def draw_pause(screen):
     
     screen.blit(text, text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40)))
     screen.blit(hint, hint.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40)))
+    

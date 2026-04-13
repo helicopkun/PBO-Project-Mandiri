@@ -61,7 +61,8 @@ class StageManager:
             #Check i-frame & kolisi player
             if circle_collide(player.rect.center, player.cur_hitbox, bullet.rect.center, bullet.hitbox_radius):
                 # Absorb
-                if player.absorb_active and not player.is_phasing: 
+                if player.absorb_active and not player.is_phasing:
+                    if player.absorbed_this_window >= player.config['absorbed_this_window_max']: continue
                     player.absorbed(bullet, self.particles)
                     self.bullet_list.remove(bullet)
                     continue
@@ -80,12 +81,10 @@ class StageManager:
             platform.draw_self(surface)
         
     def draw_entities(self, surface):
-        for bullet in self.bullet_list:
-            bullet.draw_self(surface)
-            if show_bullet_hitbox: bullet.draw_hitcircle(surface, YELLOW)
-
-        for b in self.boss_list:
-            b.draw(surface)
+        object_lists = [self.bullet_list, self.boss_list]
+        for lists in object_lists:
+            for o in lists:
+                o.draw_self(surface)
         
         for p in self.particles:
             p.draw(surface)
