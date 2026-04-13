@@ -1,4 +1,8 @@
 # PBO-Project-Mandiri
+Habibi
+25051204058
+TI 2025G
+
 Are you a complete masochist who likes playing Soulslike or Bullet-hell?
 But you feel like one of them isnt enough?
 
@@ -79,7 +83,7 @@ GUI - too lazy, atleast until more than 2 Stages
 SFX - half-way there, too lazy to continue (finding sfx is hard)
 BGM - even harder than sfx
 Textures/Stages - too lazy, asked AI to generate some
-Attacks - too lazy for keyframe editing
+More Attacks - too lazy for keyframe editing
 Animation - as you have guessed, too lazy
 Game Balancing - i tried my best ;-; 
 
@@ -90,7 +94,7 @@ Proyek ini dirancang dengan menerapkan prinsip Pemrograman Berorientasi Objek (O
 mengenai beberapa sistem game "Maidenless Danmaku":
 
 Entity System
-Semua entitas game (Player, Boss, Bullet) mewarisi dari GameObject, yang mengelola posisi, hitbox persegi, hitbox lingkaran, dan rendering sprite. Posisi disimpan sebagai float (posX, posY) untuk pergerakan yang halus, lalu disinkronkan ke pygame.Rect setiap frame melalui sync_rect() (khusus Boss dan Bullet).
+Semua entitas game (Player, Boss, Bullet) mewarisi dari GameObject, yang mengelola posisi, hitbox persegi, hitbox lingkaran, dan rendering sprite. Posisi disimpan sebagai float (posX, posY) untuk pergerakan yang halus, lalu disinkronkan ke pygame.Rect setiap frame melalui sync_rect() (khusus Boss dan Bullet), fungi draw_self yang digunakan (dan di override) oleh Player, Boss dan Bullet, Rect berguna sebagai movement platform hitbox dan placeholder/rect image, Sedangkan Circle berguna sebagai hitbox player dan bullet.
 
 Image Cache
 Asset gambar dimuat sekali dan disimpan dalam dictionary image_cache dengan key berupa tuple (path, size, scale, flipx, flipy, angle). Ini mencegah pembacaan disk berulang dan memungkinkan preloading seluruh variasi rotasi peluru saat loading screen.
