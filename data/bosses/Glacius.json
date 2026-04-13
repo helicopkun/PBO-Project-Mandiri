@@ -5,13 +5,13 @@
     "phase": {
         "1": {
             "max_hp": 50, "movement": "middle", "move_speed": 150, "y_axis": 350,
-            "rate": 1.0, "pattern": "circle", "num_bullet": 10, "bullet_spd": 280,
-            "bullet_size": 11, "bullet_img": "bullet-orb"
+            "rate": 1.0, "pattern": "cross", "num_bullet": 10, "bullet_spd": 280,
+            "bullet_size": 25, "bullet_img": "bullet-orb"
         },
         "2": {
             "max_hp": 55, "movement": "bop", "move_speed": 250, "y_axis": 400,
             "rate": 0.75, "pattern": "spiral", "num_bullet": 8, "bullet_spd": 320,
-            "bullet_size": 10, "bullet_img": "bullet-2"
+            "bullet_size": 15, "bullet_img": "bullet-2"
         },
         "3": {
             "max_hp": 60, "movement": "box", "move_speed": 300, "y_axis": 450,

@@ -20,8 +20,8 @@ def generate_boss_data(num_phases=None): # generate boss stat randomly
     boss_phase = {}
     patterns = ['circle', 'chaos', 'random', 'fan', 'spiral', 'burst', 'cross', 'aimed']
     images = ['bullet-1', 'bullet-2', 'bullet-3', 'bullet-orb']
-    max_bullet = 7
-    max_rate = 1.0
+    max_bullet = 10
+    max_rate = 1.5
     for phase in range(1, num_phases + 1):
         boss_phase[str(phase)] = {
             'max_hp': random.randint(35, 60),
@@ -33,7 +33,7 @@ def generate_boss_data(num_phases=None): # generate boss stat randomly
 
             'num_bullet': random.randint(3, max_bullet),
             'bullet_spd': random.randint(200, 500),
-            'bullet_size': random.randint(5, 12),
+            'bullet_size': random.randint(9, 40),
             'bullet_img': random.choice(images)
         }
     boss_data['phase'] = boss_phase

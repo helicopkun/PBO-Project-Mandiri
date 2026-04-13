@@ -462,7 +462,7 @@ class Player(GameObject):
         if not self.absorb_active:
             if pygame.time.get_ticks() - self.look_attack_timestamp >= 400: # only works after for when just launching attack
                 
-                if keys[pygame.K_w]: # set delay timer after look up (or down too? if i wanna)
+                if keys[pygame.K_w] or keys[pygame.K_s]: # set delay timer after look up (or down too? if i wanna)
                     self.look_jump_timestamp = pygame.time.get_ticks()
                         
                 if keys[pygame.K_d] and not keys[pygame.K_a]: self.facing_right = True 

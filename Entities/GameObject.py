@@ -28,7 +28,7 @@ class GameObject: #Combination of Circle and Rect hitbox, based on usage (finish
         self.rect.y = round(self.posY)
 
     def draw_self(self, surface):
-        if self.image: #note to self, change image on self.image by self.image = get_image(new image)
+        if self.image:
             image_rect = self.image.get_rect(center=self.rect.center)
             surface.blit(self.image, image_rect) 
             if show_img_rect: pygame.draw.rect(surface, WHITE, image_rect, 2)

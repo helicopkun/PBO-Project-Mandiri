@@ -30,7 +30,7 @@ player = Player(name="HelicopKun")
 STAGES_ICY = load_json("stages/icy_cave.json")
 STAGES_RANDOM_ICY = load_json("stages/icy_random.json")
 
-stage = StageManager(STAGES_ICY)
+stage = StageManager(STAGES_RANDOM_ICY)
 stage.load_stage(screen, player)
 
 #Test BGM - Music by Misty Studio - https://www.youtube.com/watch?v=2UvlqIUa0B0

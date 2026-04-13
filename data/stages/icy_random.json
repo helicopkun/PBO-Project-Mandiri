@@ -6,7 +6,7 @@
         "platforms": [
             [300, 300], [750, 450], [1200, 300]
         ],
-        "bosses": ["random"]
+        "bosses": ["random","random"]
     },
     "2": {
         "bg": "icy_cave.png",
@@ -15,7 +15,7 @@
         "platforms": [
             [200, 400], [600, 280], [1000, 480], [1400, 320]
         ],
-        "bosses": ["random"]
+        "bosses": ["random","random"]
     },
     "3": {
         "bg": "icy_cave.png",
@@ -24,7 +24,7 @@
         "platforms": [
             [300, 350], [800, 500], [1300, 350]
         ],
-        "bosses": ["random"]
+        "bosses": ["random","random"]
     },
     "4": {
         "bg": "icy_cave.png",
